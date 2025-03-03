@@ -2,6 +2,8 @@ local State = require "state"
 
 local Console = {}
 
+
+local canUwuPlay = false 
 function Console:init()
     self.commandHistory = {}
     self.historyIndex = 0
@@ -54,6 +56,9 @@ function Console:executeCommand(command)
             end
         end
         return
+    elseif command == "uwu" then
+        canUwuPlay = true
+        return
     elseif command == "quit" then
         love.event.quit()
         return
@@ -62,8 +67,17 @@ function Console:executeCommand(command)
     self:log("Unknown command: " .. command, "error")
 end
 
+function Console:update()
+    if canUwuPlay then
+        local source = love.audio.newSource("assets/sounds/uwu.mp3", "stream")
+        source:play()
+    end
+end
+
 function Console:draw()
     if not State.showWindows.console then return end
+
+   
     
     imgui.SetNextWindowSize(State.windowSizes.console.width, State.windowSizes.console.height, imgui.Cond_FirstUseEver)
     if imgui.Begin("Console", State.showWindows.console) then

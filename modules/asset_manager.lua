@@ -117,8 +117,11 @@ function AssetManager:draw()
         
         imgui.SameLine()
         if imgui.Button("Create Folder") then
-            local newFolderPath = self.currentPath .. "/New Folder"
+            local newFileName = ""
+            newFileName = imgui.InputText("##NewFileName", newFileName, 128)
+            local newFolderPath = self.currentPath .. newFileName
             love.filesystem.createDirectory(newFolderPath)
+            local file = love.filesystem.newFile("deneme.txt")
             Console:log("Created new folder: " .. newFolderPath)
         end
         

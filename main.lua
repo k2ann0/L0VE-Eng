@@ -1,3 +1,6 @@
+-- TODO: animasyon hızını düzenle
+
+
 local function loadModules()
     -- Load state first as it's required by all modules
     local State = require "state"
@@ -47,6 +50,7 @@ function love.load()
     -- Engine title
     love.window.setTitle("LÖVE2D Game Engine Editor")
     love.window.maximize = true
+    love.graphics.setDefaultFilter("nearest", "nearest")
 end
 
 function love.update(dt)
@@ -55,6 +59,8 @@ function love.update(dt)
     engine.camera:update(dt)
     engine.animator:update(dt)
     engine.sceneManager:update(dt)
+
+    engine.console:update()
     
     -- Draw ImGui windows
     engine.assetManager:draw()

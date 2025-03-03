@@ -1,5 +1,7 @@
 local State = require "state"
 local Console = require "modules.console"
+local SceneManager = require "modules.scene_manager"
+local Camera = require "modules.camera"
 
 local Animator = {
     currentFrame = 1,
@@ -97,22 +99,28 @@ end
 
 function Animator:update(dt)
     if not State.showWindows.animator then return end
+    if imgui.IsWindowHovered() then return end
     
     -- Seçili entity'nin animator component'ini kontrol et
     local entity = State.selectedEntity
     if not entity or not entity.components.animator then return end
     
     local animator = entity.components.animator
+    Console:log("Animator timer: " .. animator.timer .. ", Frame: " .. animator.currentFrame)
     if animator.playing and animator.currentAnimation then
         animator.timer = animator.timer + dt
+        Console:log("Timer updated: " .. animator.timer)
+            
         
         local currentFrame = animator.currentAnimation.frames[animator.currentFrame]
         if currentFrame and animator.timer >= currentFrame.duration then
             animator.timer = animator.timer - currentFrame.duration
             animator.currentFrame = animator.currentFrame + 1
+            Console:log("Frame changed to: " .. animator.currentFrame)
             
             if animator.currentFrame > #animator.currentAnimation.frames then
                 animator.currentFrame = 1
+                Console:log("Animation looped")
             end
         end
     end
@@ -139,25 +147,27 @@ function Animator:draw()
         
         -- Entity'nin animasyonlarını listele
         imgui.Text("Animations:")
-        for i, anim in ipairs(entity.components.animator.animations) do
-            if imgui.Selectable(anim.name, entity.components.animator.currentAnimation == anim) then
-                entity.components.animator.currentAnimation = anim
-                entity.components.animator.currentFrame = 1
-                entity.components.animator.timer = 0
-            end
-            
-            -- Sağ tık menüsü
-            if imgui.BeginPopupContextItem() then
-                if imgui.MenuItem("Delete") then
-                    table.remove(entity.components.animator.animations, i)
-                    if entity.components.animator.currentAnimation == anim then
-                        entity.components.animator.currentAnimation = nil
+        if entity.components.animator.animations then
+            for i, anim in ipairs(entity.components.animator.animations) do
+                if imgui.Selectable(anim.name, entity.components.animator.currentAnimation == anim) then
+                    entity.components.animator.currentAnimation = anim
+                    entity.components.animator.currentFrame = 1
+                    --entity.components.animator.timer = 0
+                end
+                
+                -- Sağ tık menüsü
+                if imgui.BeginPopupContextItem() then
+                    if imgui.MenuItem("Delete") then
+                        table.remove(entity.components.animator.animations, i)
+                        if entity.components.animator.currentAnimation == anim then
+                            entity.components.animator.currentAnimation = nil
+                        end
                     end
+                    if imgui.MenuItem("Rename") then
+                        -- TODO: Yeniden adlandırma işlevi
+                    end
+                    imgui.EndPopup()
                 end
-                if imgui.MenuItem("Rename") then
-                    -- TODO: Yeniden adlandırma işlevi
-                end
-                imgui.EndPopup()
             end
         end
         
@@ -189,7 +199,7 @@ function Animator:draw()
             end
             
             -- Frame duration slider
-            if animator.currentAnimation.frames[animator.currentFrame] then
+            if animator.currentAnimation.frames and animator.currentAnimation.frames[animator.currentFrame] then
                 local duration = imgui.SliderFloat("Frame Duration", 
                     animator.currentAnimation.frames[animator.currentFrame].duration, 
                     0.01, 1.0)
@@ -204,7 +214,8 @@ function Animator:draw()
     
     -- Grid System penceresi
     if self.showGridSystem then
-        if imgui.Begin("Grid System##popup", true) then
+        imgui.SetNextWindowSize(400, 450)
+        if imgui.Begin("Grid System##popup", self.showGridSystem) then
             -- Animasyon ismi
             self.gridWindow.animationName = imgui.InputText("Animation Name", self.gridWindow.animationName, 100)
             
@@ -214,92 +225,120 @@ function Animator:draw()
             self.gridWindow.colCount = imgui.SliderInt("Columns", self.gridWindow.colCount, 1, 10)
             self.gridWindow.rowCount = imgui.SliderInt("Rows", self.gridWindow.rowCount, 1, 10)
             
-            -- Grid önizleme
+            -- Grid önizleme alanı (sadece bir çerçeve olarak)
             local previewSize = 300
-            if imgui.BeginChild("GridPreview", previewSize, previewSize, true) then
-                local cx, cy = imgui.GetCursorScreenPos()
-                local wx, wy = imgui.GetWindowPos()
+            imgui.BeginChild("GridPreview", previewSize, previewSize, true)
+            
+            -- ImGui penceresinin pozisyonunu al
+            local wx, wy = imgui.GetWindowPos()
+            local cx, cy = imgui.GetCursorScreenPos()
+            
+            -- Dünya koordinatlarına dönüştür
+            local worldX, worldY = SceneManager:screenToWorld(cx, cy)
+            
+            -- Sprite sheet'i dünya koordinatlarında çiz
+            love.graphics.push("all")
+            
+            -- Sprite sheet'i çiz
+            love.graphics.setColor(1, 1, 1, 1)
+            self.gridWindow.asset.data:setFilter("nearest", "nearest")
+            love.graphics.draw(self.gridWindow.asset.data, worldX, worldY, 0, 
+                previewSize / self.gridWindow.asset.data:getWidth() / Camera.scaleX,
+                previewSize / self.gridWindow.asset.data:getHeight() / Camera.scaleY)
+            
+            -- Grid çizgileri
+            local cellWidth = (previewSize / self.gridWindow.colCount) / Camera.scaleX
+            local cellHeight = (previewSize / self.gridWindow.rowCount) / Camera.scaleY
+            
+            -- Grid çizgilerini çiz
+            love.graphics.setColor(1, 1, 0, 0.3)
+            for i = 1, self.gridWindow.colCount do
+                love.graphics.line(
+                    worldX + i * cellWidth, worldY,
+                    worldX + i * cellWidth, worldY + (previewSize / Camera.scaleY)
+                )
+            end
+            
+            for i = 1, self.gridWindow.rowCount do
+                love.graphics.line(
+                    worldX, worldY + i * cellHeight,
+                    worldX + (previewSize / Camera.scaleX), worldY + i * cellHeight
+                )
+            end
+            
+            -- Mouse pozisyonu ve seçim
+            local mx, my = love.mouse.getPosition()
+            local worldMX, worldMY = SceneManager:screenToWorld(mx, my)
+            
+            -- Mouse'un sprite sheet alanı içinde olup olmadığını kontrol et
+            if worldMX >= worldX and worldMX < worldX + (previewSize / Camera.scaleX) and
+               worldMY >= worldY and worldMY < worldY + (previewSize / Camera.scaleY) then
                 
-                -- Sprite sheet'i çiz
-                love.graphics.setColor(1, 1, 1, 1)
-                self.gridWindow.asset.data:setFilter("nearest", "nearest")
-                love.graphics.draw(self.gridWindow.asset.data, cx, cy, 0, 
-                    previewSize / self.gridWindow.asset.data:getWidth(),
-                    previewSize / self.gridWindow.asset.data:getHeight())
+                -- Grid hücre koordinatlarını hesapla
+                local gridX = math.floor((worldMX - worldX) / cellWidth)
+                local gridY = math.floor((worldMY - worldY) / cellHeight)
                 
-                -- Grid çizgileri
-                local cellWidth = previewSize / self.gridWindow.colCount
-                local cellHeight = previewSize / self.gridWindow.rowCount
-                
-                -- Grid çizgilerini çiz
-                love.graphics.setColor(1, 1, 0, 0.3)
-                for i = 1, self.gridWindow.colCount do
-                    love.graphics.line(cx + i * cellWidth, cy, cx + i * cellWidth, cy + previewSize)
-                end
-                for i = 1, self.gridWindow.rowCount do
-                    love.graphics.line(cx, cy + i * cellHeight, cx + previewSize, cy + i * cellHeight)
-                end
-                
-                -- Mouse pozisyonu ve seçim
-                local mx, my = love.mouse.getPosition()
-                mx = mx - cx
-                my = my - cy
-                
-                if mx >= 0 and mx < previewSize and my >= 0 and my < previewSize then
-                    local gridX = math.floor(mx / cellWidth)
-                    local gridY = math.floor(my / cellHeight)
+                -- Geçerli grid sınırları içinde mi kontrol et
+                if gridX >= 0 and gridX < self.gridWindow.colCount and
+                   gridY >= 0 and gridY < self.gridWindow.rowCount then
                     
                     -- Seçili hücreyi vurgula
                     love.graphics.setColor(1, 1, 0, 0.2)
                     love.graphics.rectangle("fill", 
-                        cx + gridX * cellWidth, 
-                        cy + gridY * cellHeight, 
+                        worldX + gridX * cellWidth, 
+                        worldY + gridY * cellHeight, 
                         cellWidth, 
-                        cellHeight)
+                        cellHeight
+                    )
                     
                     -- Tıklama ile frame seç
-                    if love.mouse.isDown(1) and imgui.IsWindowHovered() then
+                    if love.mouse.isDown(1) and not self.lastMouseDown then
                         local frameIndex = gridY * self.gridWindow.colCount + gridX + 1
-                        if love.mouse.isDown(1) and not self.lastMouseDown then
-                            if not self.gridWindow.selectedFrames[frameIndex] then
-                                self.gridWindow.selectedFrames[frameIndex] = {
-                                    quad = love.graphics.newQuad(
-                                        gridX * (self.gridWindow.asset.data:getWidth() / self.gridWindow.colCount),
-                                        gridY * (self.gridWindow.asset.data:getHeight() / self.gridWindow.rowCount),
-                                        self.gridWindow.asset.data:getWidth() / self.gridWindow.colCount,
-                                        self.gridWindow.asset.data:getHeight() / self.gridWindow.rowCount,
-                                        self.gridWindow.asset.data:getDimensions()
-                                    ),
-                                    duration = 0.1,
-                                    x = gridX,
-                                    y = gridY
-                                }
-                                Console:log("Selected frame " .. frameIndex)
-                            else
-                                self.gridWindow.selectedFrames[frameIndex] = nil
-                                Console:log("Deselected frame " .. frameIndex)
-                            end
+                        if not self.gridWindow.selectedFrames[frameIndex] then
+                            self.gridWindow.selectedFrames[frameIndex] = {
+                                quad = love.graphics.newQuad(
+                                    gridX * (self.gridWindow.asset.data:getWidth() / self.gridWindow.colCount),
+                                    gridY * (self.gridWindow.asset.data:getHeight() / self.gridWindow.rowCount),
+                                    self.gridWindow.asset.data:getWidth() / self.gridWindow.colCount,
+                                    self.gridWindow.asset.data:getHeight() / self.gridWindow.rowCount,
+                                    self.gridWindow.asset.data:getDimensions()
+                                ),
+                                duration = 0.1,
+                                x = gridX,
+                                y = gridY
+                            }
+                            Console:log("Selected frame " .. frameIndex)
+                        else
+                            self.gridWindow.selectedFrames[frameIndex] = nil
+                            Console:log("Deselected frame " .. frameIndex)
                         end
+                        self.lastMouseDown = true
                     end
                 end
-                
-                -- Seçili frame'leri göster
-                for i, frame in pairs(self.gridWindow.selectedFrames) do
-                    local fx = frame.x
-                    local fy = frame.y
-                    love.graphics.setColor(0, 1, 0, 0.3)
-                    love.graphics.rectangle("fill", 
-                        cx + fx * cellWidth, 
-                        cy + fy * cellHeight, 
-                        cellWidth, 
-                        cellHeight)
-                end
-                
-                -- Rengi resetle
-                love.graphics.setColor(1, 1, 1, 1)
-                
-                imgui.EndChild()
             end
+            
+            -- Mouse durumunu güncelle (her frame'de)
+            if not love.mouse.isDown(1) then
+                self.lastMouseDown = false
+            end
+
+            
+            -- Seçili frame'leri göster
+            love.graphics.setColor(0, 1, 0, 0.3)
+            for i, frame in pairs(self.gridWindow.selectedFrames) do
+                local fx = frame.x
+                local fy = frame.y
+                love.graphics.rectangle("fill", 
+                    worldX + fx * cellWidth, 
+                    worldY + fy * cellHeight, 
+                    cellWidth, 
+                    cellHeight
+                )
+            end
+            
+            love.graphics.pop()
+            
+            imgui.EndChild()
             
             -- Mouse durumunu güncelle
             self.lastMouseDown = love.mouse.isDown(1)
@@ -344,6 +383,8 @@ function Animator:draw()
                     Console:log("Please select at least one frame!")
                 end
             end
+            
+            imgui.SameLine()
             
             if imgui.Button("Cancel") then
                 self.showGridSystem = false  -- Grid System'i kapat

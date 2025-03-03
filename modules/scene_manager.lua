@@ -1,6 +1,7 @@
 local State = require "state"
 local Console = require "modules.console"
 local Camera = require "modules.camera"
+local imgui = require "imgui"
 
 local SceneManager = {}
 
@@ -12,6 +13,7 @@ function SceneManager:init()
     self.showGrid = true
     self.lastMouseX = 0
     self.lastMouseY = 0
+    self.handleSize = 4
     
     -- Create a default scene
     self:createNewScene("Default Scene")
@@ -85,66 +87,9 @@ function SceneManager:drawGrid()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
--- function SceneManager:drawEntities()
---     for _, entity in ipairs(self.entities) do
---         -- Sprite veya Animator component'i varsa
---         if entity.components then
---             if entity.components.animator and 
---                entity.components.animator.currentAnimation and 
---                entity.components.animator.playing then
---                 -- Animasyon çiz
---                 local animator = entity.components.animator
---                 local anim = animator.currentAnimation
-                
---                 if anim and anim.frames and #anim.frames > 0 then
---                     local frame = anim.frames[animator.currentFrame]
---                     if frame and frame.quad then
---                         love.graphics.setColor(1, 1, 1, 1)
---                         love.graphics.draw(
---                             anim.source.data,
---                             frame.quad,
---                             entity.x + entity.width/2,
---                             entity.y + entity.height/2,
---                             entity.rotation or 0,
---                             entity.width / anim.frameWidth,
---                             entity.height / anim.frameHeight,
---                             anim.frameWidth/2,
---                             anim.frameHeight/2
---                         )
---                     end
---                 end
---             elseif entity.components.sprite and entity.components.sprite.image then
---                 -- Normal sprite çiz
---                 local sprite = entity.components.sprite
---                 local color = sprite.color or {1, 1, 1, 1}
-                
---                 love.graphics.setColor(color[1], color[2], color[3], color[4])
-                
---                 local img = sprite.image.data
---                 local w, h = img:getDimensions()
-                
---                 love.graphics.draw(
---                     img,
---                     entity.x + entity.width/2,
---                     entity.y + entity.height/2,
---                     entity.rotation or 0,
---                     entity.width / w,
---                     entity.height / h,
---                     w/2, h/2
---                 )
---             else
---                 -- Placeholder çiz
---                 love.graphics.setColor(0.5, 0.5, 0.5, 1)
---                 love.graphics.rectangle("fill", entity.x, entity.y, entity.width, entity.height)
---                 love.graphics.setColor(0.8, 0.8, 0.8, 1)
---                 love.graphics.rectangle("line", entity.x, entity.y, entity.width, entity.height)
---                 love.graphics.setColor(1, 1, 1, 1)
---                 love.graphics.print(entity.name or "Entity", entity.x + 2, entity.y + 2)
---             end
---         end
---     end
---     love.graphics.setColor(1, 1, 1, 1)  -- Rengi resetle
--- end
+
+
+
 function SceneManager:drawEntities()
     for _, entity in ipairs(self.entities) do
         -- Sprite veya Animator component'i varsa
@@ -158,6 +103,7 @@ function SceneManager:drawEntities()
                     local frame = anim.frames[animator.currentFrame]
                     if frame and frame.quad then
                         love.graphics.setColor(1, 1, 1, 1)
+                        anim.source.data:setFilter("nearest", "nearest")
                         love.graphics.draw(
                             anim.source.data,
                             frame.quad,
@@ -180,7 +126,7 @@ function SceneManager:drawEntities()
                 
                 local img = sprite.image.data
                 local w, h = img:getDimensions()
-                
+                img:setFilter("nearest", "nearest")
                 love.graphics.draw(
                     img,
                     entity.x + entity.width/2,
@@ -199,68 +145,254 @@ function SceneManager:drawEntities()
                 love.graphics.setColor(1, 1, 1, 1)
                 love.graphics.print(entity.name or "Entity", entity.x + 2, entity.y + 2)
             end
+            
+            -- Seçili entity'nin etrafına çizgi çiz
+            if entity == State.selectedEntity then
+                self:drawSelectionOutline(entity)
+            end
         end
     end
     love.graphics.setColor(1, 1, 1, 1)  -- Rengi resetle
 end
 
-function SceneManager:handleInput()
-    -- Check for entity selection/manipulation
-    if love.mouse.isDown(1) and not imgui.GetWantCaptureMouse() then
-        local mouseX, mouseY = love.mouse.getPosition()
-        local worldX, worldY = self:screenToWorld(mouseX, mouseY)
+-- Seçili entity'nin etrafına çizgi çizme fonksiyonu
+function SceneManager:drawSelectionOutline(entity)
+    -- Seçim çizgisinin rengi ve kalınlığı
+    love.graphics.setColor(0, 1, 1, 1)  -- Turkuaz renk
+    love.graphics.setLineWidth(2)
+    
+    -- Entity'nin dönüşünü hesaba katarak çizgi çiz
+    if entity.rotation and entity.rotation ~= 0 then
+        -- Dönüşlü çizim için merkez noktayı hesapla
+        local centerX = entity.x + entity.width/2
+        local centerY = entity.y + entity.height/2
         
-        -- Calculate mouse delta
-        local dx = mouseX - self.lastMouseX
-        local dy = mouseY - self.lastMouseY
+        -- Dönüşü uygula
+        love.graphics.push()
+        love.graphics.translate(centerX, centerY)
+        love.graphics.rotate(entity.rotation)
         
-        -- Check if clicked on an entity
-        local clickedEntity = nil
-        for _, entity in ipairs(self.entities) do
-            if worldX >= entity.x and worldX <= entity.x + entity.width and
-               worldY >= entity.y and worldY <= entity.y + entity.height then
-                clickedEntity = entity
-                break
-            end
-        end
+        -- Dikdörtgen çiz (merkez etrafında)
+        love.graphics.rectangle("line", -entity.width/2, -entity.height/2, entity.width, entity.height)
         
-        if clickedEntity then
-            State.selectedEntity = clickedEntity
-            -- Move entity with mouse drag
-            if State.selectedEntity then
-                entity = State.selectedEntity
-                entity.x = entity.x + dx / Camera.scaleX
-                entity.y = entity.y + dy / Camera.scaleY
-            end
-        else
-            -- Create new entity at click position
-            if love.keyboard.isDown("lctrl") then
-                self:createEntity(worldX, worldY)
-            else
-                State.selectedEntity = nil
-            end
-        end
+        -- Köşe tutamaçları çiz
+        local handleSize = 1
+        -- Sol üst
+        love.graphics.rectangle("fill", -entity.width/2 - handleSize/2, -entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Sağ üst
+        love.graphics.rectangle("fill", entity.width/2 - handleSize/2, -entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Sol alt
+        love.graphics.rectangle("fill", -entity.width/2 - handleSize/2, entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Sağ alt
+        love.graphics.rectangle("fill", entity.width/2 - handleSize/2, entity.height/2 - handleSize/2, handleSize, handleSize)
         
-        -- Update last mouse position
-        self.lastMouseX = mouseX
-        self.lastMouseY = mouseY
+        -- Orta tutamaçlar
+        -- Üst
+        
+        love.graphics.rectangle("fill", -handleSize/2, -entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Alt
+        love.graphics.rectangle("fill", -handleSize/2, entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Sol
+        love.graphics.rectangle("fill", -entity.width/2 - handleSize/2, -handleSize/2, handleSize, handleSize)
+        -- Sağ
+        love.graphics.rectangle("fill", entity.width/2 - handleSize/2, -handleSize/2, handleSize, handleSize)
+        
+        love.graphics.pop()
     else
-        -- Reset last mouse position when not dragging
-        self.lastMouseX = love.mouse.getX()
-        self.lastMouseY = love.mouse.getY()
+        -- Dönüşsüz normal çizim
+        love.graphics.rectangle("line", entity.x, entity.y, entity.width, entity.height)
+        
+        -- Köşe tutamaçları çiz
+        local handleSize = 8
+        -- Sol üst
+        love.graphics.rectangle("fill", entity.x - handleSize/2, entity.y - handleSize/2, handleSize, handleSize)
+        -- Sağ üst
+        love.graphics.rectangle("fill", entity.x + entity.width - handleSize/2, entity.y - handleSize/2, handleSize, handleSize)
+        -- Sol alt
+        love.graphics.rectangle("fill", entity.x - handleSize/2, entity.y + entity.height - handleSize/2, handleSize, handleSize)
+        -- Sağ alt
+        love.graphics.rectangle("fill", entity.x + entity.width - handleSize/2, entity.y + entity.height - handleSize/2, handleSize, handleSize)
+        
+        -- Orta tutamaçlar
+        -- Üst
+        love.graphics.rectangle("fill", entity.x + entity.width/2 - handleSize/2, entity.y - handleSize/2, handleSize, handleSize)
+        -- Alt
+        love.graphics.rectangle("fill", entity.x + entity.width/2 - handleSize/2, entity.y + entity.height - handleSize/2, handleSize, handleSize)
+        -- Sol
+        love.graphics.rectangle("fill", entity.x - handleSize/2, entity.y + entity.height/2 - handleSize/2, handleSize, handleSize)
+        -- Sağ
+        love.graphics.rectangle("fill", entity.x + entity.width - handleSize/2, entity.y + entity.height/2 - handleSize/2, handleSize, handleSize)
     end
+    
+    -- Çizgi kalınlığını resetle
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(1, 1, 1, 1)
+end
 
-    -- Delete entity with right-click
-    if love.mouse.isDown(2) and State.selectedEntity then
-        self:deleteEntity(State.selectedEntity)
-    end
 
-    -- Zoom in/out with mouse wheel
-    if love.mouse.isDown(4) then
-        Camera:zoom(1.1)  -- Zoom in
-    elseif love.mouse.isDown(5) then
-        Camera:zoom(0.9)  -- Zoom out
+function SceneManager:handleInput()
+    local mouseX, mouseY = love.mouse.getPosition()
+    local worldX, worldY = self:screenToWorld(mouseX, mouseY)
+    
+    -- Mouse tıklaması
+    if love.mouse.isDown(1) and not imgui.GetWantCaptureMouse() then
+        -- Mouse delta hesapla
+        local dx = (mouseX - self.lastMouseX) / Camera.scaleX
+        local dy = (mouseY - self.lastMouseY) / Camera.scaleY
+        
+        -- Eğer bir tutamaç sürüklüyorsak
+        if self.isDragging and self.draggedHandle and State.selectedEntity then
+            local entity = State.selectedEntity
+            
+            -- Tutamaç tipine göre transform değiştir
+            if self.draggedHandle == "topLeft" then
+                entity.x = entity.x + dx
+                entity.y = entity.y + dy
+                entity.width = entity.width - dx
+                entity.height = entity.height - dy
+            elseif self.draggedHandle == "topRight" then
+                entity.y = entity.y + dy
+                entity.width = entity.width + dx
+                entity.height = entity.height - dy
+            elseif self.draggedHandle == "bottomLeft" then
+                entity.x = entity.x + dx
+                entity.width = entity.width - dx
+                entity.height = entity.height + dy
+            elseif self.draggedHandle == "bottomRight" then
+                entity.width = entity.width + dx
+                entity.height = entity.height + dy
+            elseif self.draggedHandle == "top" then
+                entity.y = entity.y + dy
+                entity.height = entity.height - dy
+            elseif self.draggedHandle == "bottom" then
+                entity.height = entity.height + dy
+            elseif self.draggedHandle == "left" then
+                entity.x = entity.x + dx
+                entity.width = entity.width - dx
+            elseif self.draggedHandle == "right" then
+                entity.width = entity.width + dx
+            elseif self.draggedHandle == "move" then
+                entity.x = entity.x + dx
+                entity.y = entity.y + dy
+            end
+            
+            -- Minimum boyut kontrolü
+            if entity.width < 10 then entity.width = 10 end
+            if entity.height < 10 then entity.height = 10 end
+        elseif not self.isDragging then
+            -- Tutamaç kontrolü
+            if State.selectedEntity then
+                local handle = self:checkHandles(worldX, worldY, State.selectedEntity)
+                if handle then
+                    self.isDragging = true
+                    self.draggedHandle = handle
+                else
+                    -- Entity içine tıklama kontrolü
+                    local clickedEntity = self:getEntityAtPosition(worldX, worldY)
+                    if clickedEntity then
+                        State.selectedEntity = clickedEntity
+                        self.isDragging = true
+                        self.draggedHandle = "move"
+                    else
+                        -- Boş alana tıklama
+                        if love.keyboard.isDown("lctrl") then
+                            self:createEntity(worldX, worldY)
+                        else
+                            State.selectedEntity = nil
+                        end
+                    end
+                end
+            else
+                -- Entity seçimi
+                local clickedEntity = self:getEntityAtPosition(worldX, worldY)
+                if clickedEntity then
+                    State.selectedEntity = clickedEntity
+                    self.isDragging = true
+                    self.draggedHandle = "move"
+                else
+                    -- Yeni entity oluştur
+                    if love.keyboard.isDown("lctrl") then
+                        self:createEntity(worldX, worldY)
+                    end
+                end
+            end
+        end
+    else
+        -- Mouse bırakıldığında
+        self.isDragging = false
+        self.draggedHandle = nil
     end
+    
+    -- Son mouse pozisyonunu güncelle
+    self.lastMouseX = mouseX
+    self.lastMouseY = mouseY
+end
+
+function SceneManager:getEntityAtPosition(x, y)
+    for i = #self.entities, 1, -1 do  -- Üstteki entity'leri önce kontrol et
+        local entity = self.entities[i]
+        if x >= entity.x and x <= entity.x + entity.width and
+           y >= entity.y and y <= entity.y + entity.height then
+            return entity
+        end
+    end
+    return nil
+end
+
+function SceneManager:checkHandles(x, y, entity)
+    local handleSize = self.handleSize / Camera.scaleX  -- Kamera ölçeğine göre ayarla
+    
+    -- Köşe tutamaçları
+    -- Sol üst
+    if x >= entity.x - handleSize/2 and x <= entity.x + handleSize/2 and
+       y >= entity.y - handleSize/2 and y <= entity.y + handleSize/2 then
+        return "topLeft"
+    end
+    
+    -- Sağ üst
+    if x >= entity.x + entity.width - handleSize/2 and x <= entity.x + entity.width + handleSize/2 and
+       y >= entity.y - handleSize/2 and y <= entity.y + handleSize/2 then
+        return "topRight"
+    end
+    
+    -- Sol alt
+    if x >= entity.x - handleSize/2 and x <= entity.x + handleSize/2 and
+       y >= entity.y + entity.height - handleSize/2 and y <= entity.y + entity.height + handleSize/2 then
+        return "bottomLeft"
+    end
+    
+    -- Sağ alt
+    if x >= entity.x + entity.width - handleSize/2 and x <= entity.x + entity.width + handleSize/2 and
+       y >= entity.y + entity.height - handleSize/2 and y <= entity.y + entity.height + handleSize/2 then
+        return "bottomRight"
+    end
+    
+    -- Kenar tutamaçları
+    -- Üst
+    if x >= entity.x + entity.width/2 - handleSize/2 and x <= entity.x + entity.width/2 + handleSize/2 and
+       y >= entity.y - handleSize/2 and y <= entity.y + handleSize/2 then
+        return "top"
+    end
+    
+    -- Alt
+    if x >= entity.x + entity.width/2 - handleSize/2 and x <= entity.x + entity.width/2 + handleSize/2 and
+       y >= entity.y + entity.height - handleSize/2 and y <= entity.y + entity.height + handleSize/2 then
+        return "bottom"
+    end
+    
+    -- Sol
+    if x >= entity.x - handleSize/2 and x <= entity.x + handleSize/2 and
+       y >= entity.y + entity.height/2 - handleSize/2 and y <= entity.y + entity.height/2 + handleSize/2 then
+        return "left"
+    end
+    
+    -- Sağ
+    if x >= entity.x + entity.width - handleSize/2 and x <= entity.x + entity.width + handleSize/2 and
+       y >= entity.y + entity.height/2 - handleSize/2 and y <= entity.y + entity.height/2 + handleSize/2 then
+        return "right"
+    end
+    
+    return nil
 end
 
 function SceneManager:screenToWorld(x, y)

@@ -76,13 +76,24 @@ function Hierarchy:draw()
             -- Drag & Drop işlemleri
             if imgui.BeginDragDropSource() then
                 self.draggedEntity = entity
-                imgui.SetDragDropPayload("ENTITY", i)
+                -- Eğer SetDragDropPayload fonksiyonu yoksa, alternatif bir yöntem kullanın
+                -- imgui.SetDragDropPayload("ENTITY", i)
                 imgui.Text(entity.name or "Entity " .. i)
+                
                 imgui.EndDragDropSource()
             end
             
             if imgui.BeginDragDropTarget() then
-                local payload = imgui.AcceptDragDropPayload("ENTITY")
+                -- Eğer AcceptDragDropPayload fonksiyonu yoksa, alternatif bir yöntem kullanın
+                -- local payload = imgui.AcceptDragDropPayload("ENTITY")
+                local newEntity = SceneManager:createEntity(entity.x + 32, entity.y + 32)
+                    for k, v in pairs(entity) do
+                        if k ~= "name" then
+                            newEntity[k] = v
+                        end
+                    end
+                    newEntity.name = entity.name .. " (Copy)"
+                local payload = true -- Basit bir alternatif
                 if payload then
                     -- Sürüklenen entity'yi hedef entity'nin child'ı yap
                     if self.draggedEntity and self.draggedEntity ~= entity then
