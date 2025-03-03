@@ -20,7 +20,8 @@ local State = {
         animator = {width = 400, height = 300},
         sceneView = {width = 800, height = 600},
         hierarchy = {width = 250, height = 400},
-        inspector = {width = 300, height = 400}
+        inspector = {width = 300, height = 400},
+        error = {width = 300, height = 200}
     },
     showWindows = {
         assetManager = true,

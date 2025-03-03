@@ -1,9 +1,12 @@
 local State = require "state"
+local imgui = require "imgui"
 
 local Console = {}
 
-
+local showErrorWindow = true
 local canUwuPlay = false 
+
+
 function Console:init()
     self.commandHistory = {}
     self.historyIndex = 0
@@ -120,6 +123,22 @@ function Console:draw()
         end
     end
     imgui.End()
+end
+
+function Console:error(message)
+    if showErrorWindow then
+        --imgui.SetNextWindowSize(State.windowSizes.error.width, State.windowSizes.error.height, imgui.Cond_FirstUseEver)
+        if imgui.Begin("ERROR") then
+            
+            love.graphics.setColor(1, 0.4, 0.4, 1)
+            imgui.Text("ERROR : " .. message)
+            love.graphics.setColor(1, 0, 1, 1)
+            if imgui.Button("OK") then
+                showErrorWindow = false
+            end
+        end
+        imgui.End()
+    end
 end
 
 return Console

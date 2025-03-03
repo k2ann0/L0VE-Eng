@@ -55,7 +55,7 @@ end
 
 function love.update(dt)
     imgui.NewFrame()
-    
+
     engine.camera:update(dt)
     engine.animator:update(dt)
     engine.sceneManager:update(dt)

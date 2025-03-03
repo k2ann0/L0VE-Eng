@@ -59,6 +59,7 @@ function SceneManager:deleteEntity(entity)
                 State.selectedEntity = nil
             end
             Console:log("Deleted entity: " .. entity.name)
+            print("Deleted entity: " .. entity.name)
             return true
         end
     end
@@ -149,6 +150,10 @@ function SceneManager:drawEntities()
             -- Seçili entity'nin etrafına çizgi çiz
             if entity == State.selectedEntity then
                 self:drawSelectionOutline(entity)
+
+                if love.keyboard.isDown("delete") then
+                    self:deleteEntity(State.selectedEntity)
+                end
             end
         end
     end
@@ -433,7 +438,7 @@ function SceneManager:update(dt)
         if entity.components and entity.components.animator then
             local animator = entity.components.animator
             if animator.playing and animator.currentAnimation then
-                animator.timer = animator.timer + dt
+                --animator.timer = animator.timer + dt
                 
                 local currentFrame = animator.currentAnimation.frames[animator.currentFrame]
                 if currentFrame and animator.timer >= currentFrame.duration then

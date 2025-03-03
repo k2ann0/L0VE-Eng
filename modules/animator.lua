@@ -27,6 +27,7 @@ local showGridWindow = false
 local currentAsset = nil  -- Geçerli asset'i tutacak değişken
 local lastClickTime = 0   -- Son tıklama zamanını tutacak değişken
 local animationName = ""  -- Animasyon ismi için yeni değişken
+local canRename = false
 
 function Animator:init()
     self.animations = {}
@@ -146,7 +147,10 @@ function Animator:draw()
         imgui.Separator()
         
         -- Entity'nin animasyonlarını listele
+        local anim_text_color = {0, 1, 0, 1}
+        imgui.PushStyleColor(imgui.Col_Text, anim_text_color[1], anim_text_color[2], anim_text_color[3], anim_text_color[4])
         imgui.Text("Animations:")
+        imgui.PopStyleColor()
         if entity.components.animator.animations then
             for i, anim in ipairs(entity.components.animator.animations) do
                 if imgui.Selectable(anim.name, entity.components.animator.currentAnimation == anim) then
@@ -165,6 +169,7 @@ function Animator:draw()
                     end
                     if imgui.MenuItem("Rename") then
                         -- TODO: Yeniden adlandırma işlevi
+                        canRename = true
                     end
                     imgui.EndPopup()
                 end
@@ -207,6 +212,24 @@ function Animator:draw()
                     animator.currentAnimation.frames[animator.currentFrame].duration = duration
                 end
             end
+            imgui.Separator()
+
+            local new_anim_name = ""
+            if canRename then
+                print("Before Save : " .. entity.components.animator.currentAnimation.name)
+                imgui.InputText("Animation Name", new_anim_name, 100)
+                local tempText = new_anim_name
+                if imgui.Button("OK") then
+                    print("\nOK : " .. entity.components.animator.currentAnimation.name)
+                    if entity.components.animator.currentAnimation.name == "New Animation" then
+                        print("BLOK CALISTI : " .. tempText)
+                        entity.components.animator.currentAnimation.name = tempText
+                        --self.gridWindow.animationName = new_anim_name
+                    end
+                    canRename = false
+                end
+            end
+        
         end
         
         imgui.End()
