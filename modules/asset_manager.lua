@@ -121,7 +121,6 @@ function AssetManager:draw()
             newFileName = imgui.InputText("##NewFileName", newFileName, 128)
             local newFolderPath = self.currentPath .. newFileName
             love.filesystem.createDirectory(newFolderPath)
-            local file = love.filesystem.newFile("deneme.txt")
             Console:log("Created new folder: " .. newFolderPath)
         end
         
@@ -224,6 +223,27 @@ function AssetManager:draw()
                         end
                         
                         imgui.EndPopup()
+                    end
+                    
+                    -- Sadece image asset'ler için Drag & Drop desteği
+                    if item.type == "image" then
+                        local asset = self:loadAsset(item.type, item.path)
+                        
+                        -- Drag başlangıcı
+                        if imgui.IsItemHovered() and love.mouse.isDown(1) then
+                            State.draggedAsset = asset
+                            State.dragStarted = true
+                        end
+                        
+                        -- Drag sırasında text gösterimi
+                        if State.draggedAsset == asset and State.dragStarted then
+                            local mouseX, mouseY = love.mouse.getPosition()
+                            love.graphics.setColor(1, 1, 1, 0.7)
+                            love.graphics.rectangle("fill", mouseX + 10, mouseY + 10, 200, 30)
+                            love.graphics.setColor(0, 0, 0, 1)
+                            love.graphics.print("Dragging: " .. asset.name, mouseX + 15, mouseY + 15)
+                            love.graphics.setColor(1, 1, 1, 1)
+                        end
                     end
                     
                     imgui.PopStyleColor()

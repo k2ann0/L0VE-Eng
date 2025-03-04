@@ -88,9 +88,6 @@ function SceneManager:drawGrid()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-
-
-
 function SceneManager:drawEntities()
     for _, entity in ipairs(self.entities) do
         -- Sprite veya Animator component'i varsa
@@ -193,7 +190,6 @@ function SceneManager:drawSelectionOutline(entity)
         
         -- Orta tutamaçlar
         -- Üst
-        
         love.graphics.rectangle("fill", -handleSize/2, -entity.height/2 - handleSize/2, handleSize, handleSize)
         -- Alt
         love.graphics.rectangle("fill", -handleSize/2, entity.height/2 - handleSize/2, handleSize, handleSize)
@@ -234,10 +230,25 @@ function SceneManager:drawSelectionOutline(entity)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-
 function SceneManager:handleInput()
     local mouseX, mouseY = love.mouse.getPosition()
     local worldX, worldY = self:screenToWorld(mouseX, mouseY)
+    
+    -- Eğer bir asset sürükleniyorsa ve ImGui mouse'u kapsamıyorsa
+    if not imgui.GetWantCaptureMouse() and State.draggedAsset and State.dragStarted then
+        -- Mouse bırakıldığında yeni entity oluştur
+        if not love.mouse.isDown(1) then
+            -- Sadece sahne üzerinde fare bırakılırsa entity oluştur
+            if worldX >= 0 and worldX <= love.graphics.getWidth() and 
+               worldY >= 0 and worldY <= love.graphics.getHeight() then
+                self:handleDraggedAsset(State.draggedAsset, worldX, worldY)
+            end
+            
+            -- Sürükleme durumunu sıfırla
+            State.draggedAsset = nil
+            State.dragStarted = false
+        end
+    end
     
     -- Mouse tıklaması
     if love.mouse.isDown(1) and not imgui.GetWantCaptureMouse() then
@@ -454,5 +465,28 @@ function SceneManager:update(dt)
         end
     end
 end
+
+function SceneManager:handleDraggedAsset(asset, worldX, worldY)
+    -- Eğer sürüklenen asset bir görsel ise
+    if asset and asset.type == "image" then
+        -- Yeni bir entity oluştur
+        local newEntity = self:createEntity(worldX, worldY)
+        
+        -- Entity'e sprite component ekle
+        newEntity.components.sprite = {
+            image = asset,
+            color = {1, 1, 1, 1}
+        }
+        
+        -- Entitynin boyutunu resmin orijinal boyutuna ayarla
+        local img = asset.data
+        local w, h = img:getDimensions()
+        newEntity.width = w
+        newEntity.height = h
+        
+        Console:log("Created entity with dragged image: " .. asset.name)
+    end
+end
+
 
 return SceneManager

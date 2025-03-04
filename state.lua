@@ -1,7 +1,10 @@
 local State = {
+    world = nil,
     assets = {},
     consoleLog = {},
     selectedAsset = nil,
+    draggedAsset = nil,
+    dragStarted = false,
     scenes = {},
     currentScene = nil,
     animations = {},

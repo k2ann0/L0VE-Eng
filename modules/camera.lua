@@ -152,7 +152,7 @@ function Camera:draw()
         imgui.Separator()
         
         imgui.Text("Rotation (degrees)")
-        local rotation = imgui.DragFloat("##CameraRotation", self.rotation, 1, 0, 360)
+        local rotation = imgui.DragFloat("##CameraRotation", self.rotation, 1, -360, 360)
         if rotation ~= self.rotation then
             self.rotation = rotation % 360
             changed = true

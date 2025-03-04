@@ -60,7 +60,7 @@ function Console:executeCommand(command)
         end
         return
     elseif command == "uwu" then
-        canUwuPlay = true
+        UwU()
         return
     elseif command == "quit" then
         love.event.quit()
@@ -71,12 +71,16 @@ function Console:executeCommand(command)
 end
 
 function Console:update()
-    if canUwuPlay then
+   
+end
+function UwU()
+    --if canUwuPlay then
         local source = love.audio.newSource("assets/sounds/uwu.mp3", "stream")
         source:play()
-    end
+        love.timer.sleep(1)
+        canUwuPlay = false
+    --end
 end
-
 function Console:draw()
     if not State.showWindows.console then return end
 

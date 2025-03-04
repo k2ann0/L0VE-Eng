@@ -1,5 +1,5 @@
 -- TODO: animasyon hızını düzenle
-
+local world
 
 local function loadModules()
     -- Load state first as it's required by all modules
@@ -27,7 +27,8 @@ local function loadModules()
     
     -- Log initialization
     Console:log("Engine initialized")
-    
+    State.world = love.physics.newWorld(0, 9.81*64, true) --create a world for the bodies to exist in with horizontal gravity of 0 and vertical gravity of 9.81
+    world = State.world
     return {
         state = State,
         assetManager = AssetManager,
@@ -47,6 +48,7 @@ function love.load()
     -- Load modules
     engine = loadModules()
     
+    
     -- Engine title
     love.window.setTitle("LÖVE2D Game Engine Editor")
     love.window.maximize = true
@@ -56,6 +58,7 @@ end
 function love.update(dt)
     imgui.NewFrame()
 
+    world:update(dt)
     engine.camera:update(dt)
     engine.animator:update(dt)
     engine.sceneManager:update(dt)

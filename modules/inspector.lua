@@ -1,6 +1,6 @@
 local State = require "state"
 local Console = require "modules.console"
-
+local flip_h, flip_v
 local Inspector = {
     showWindow = true,
     componentTypes = {
@@ -36,6 +36,12 @@ function Inspector:drawTransformComponent(entity)
         -- Rotation
         local rotation = imgui.DragFloat("Rotation##Transform", entity.rotation or 0, 0.1, -360, 360)
         if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end
+
+        -- Flips
+        flip_h, flip_v = false, false
+        if imgui.Checkbox("Flip_h", flip_h) then height = height * -1 end
+        if imgui.Checkbox("Flip_v", flip_v) then width = width * -1 end
+        
     end
 end
 
@@ -103,6 +109,9 @@ function Inspector:drawColliderComponent(entity)
     if not entity.components.collider then
         if imgui.Button("Add Collider Component") then
             entity.components.collider = {
+                body = nil,
+                shape = nil,
+                fixture = nil,
                 type = "box",
                 width = entity.width,
                 height = entity.height,
@@ -126,24 +135,24 @@ function Inspector:drawColliderComponent(entity)
         end
         
         -- Size
-        local width = imgui.DragFloat("Width##Collider", entity.components.collider.width, 0.1, 1, 1000)
+        local width = imgui.DragFloat("Width##Collider", entity.components.collider.width or 64, 0.1, 1, 1000)
         if width ~= entity.components.collider.width then 
             entity.components.collider.width = width 
         end
         
-        local height = imgui.DragFloat("Height##Collider", entity.components.collider.height, 0.1, 1, 1000)
+        local height = imgui.DragFloat("Height##Collider", entity.components.collider.height or 64, 0.1, 1, 1000)
         if height ~= entity.components.collider.height then 
             entity.components.collider.height = height 
         end
         
         -- Offset
-        local offsetX = imgui.DragFloat("Offset X##Collider", entity.components.collider.offset.x, 0.1, -100, 100)
-        if offsetX ~= entity.components.collider.offset.x then 
+        local offsetX = imgui.DragFloat("Offset X##Collider", 0 or entity.components.collider.offset.x, 0.1, -100, 100)
+        if offsetX ~= 0 or entity.components.collider.offset.x then 
             entity.components.collider.offset.x = offsetX 
         end
         
-        local offsetY = imgui.DragFloat("Offset Y##Collider", entity.components.collider.offset.y, 0.1, -100, 100)
-        if offsetY ~= entity.components.collider.offset.y then 
+        local offsetY = imgui.DragFloat("Offset Y##Collider", 0 or entity.components.collider.offset.y, 0.1, -100, 100)
+        if offsetY ~= 0 or entity.components.collider.offset.y then 
             entity.components.collider.offset.y = offsetY 
         end
         
@@ -151,6 +160,33 @@ function Inspector:drawColliderComponent(entity)
         local isTrigger = imgui.Checkbox("Is Trigger##Collider", entity.components.collider.isTrigger)
         if isTrigger ~= entity.components.collider.isTrigger then 
             entity.components.collider.isTrigger = isTrigger 
+        end
+
+        if entity.components.collider.type == "box" then
+            entity.components.collider.body = love.physics.newBody(State.world, 
+            entity.components.collider.width,
+            entity.components.collider.height,
+            "dynamic")
+
+            entity.components.collider.shape = love.physics.newRectangleShape(
+            entity.components.collider.width,
+            entity.components.collider.height,
+            entity.width, entity.height)
+
+            entity.components.collider.fixture = love.physics.newFixture(entity.components.collider.body, entity.components.collider.shape, 2)
+
+        end
+
+        if entity.components.collider.type == "circle" then
+            entity.components.collider.body = love.physics.newBody(State.world, 
+            entity.components.collider.width,
+            entity.components.collider.height,
+            "dynamic")
+
+            entity.components.collider.shape = love.physics.newCircleShape(entity.components.collider.width)
+
+            entity.components.collider.fixture = love.physics.newFixture(entity.components.collider.body, entity.components.collider.shape, 2)
+
         end
         
         -- Component'i silme butonu

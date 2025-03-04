@@ -60,6 +60,7 @@ function Hierarchy:draw()
                 end
                 if imgui.MenuItem("Rename") then
                     -- TODO: Yeniden adlandırma işlevi eklenecek
+                    
                 end
                 if imgui.MenuItem("Duplicate") then
                     local newEntity = SceneManager:createEntity(entity.x + 32, entity.y + 32)
@@ -126,5 +127,4 @@ function Hierarchy:draw()
     end
     imgui.End()
 end
--- DENEMEEEE
 return Hierarchy 

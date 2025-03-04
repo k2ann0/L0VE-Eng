@@ -108,23 +108,32 @@ function Animator:update(dt)
     
     local animator = entity.components.animator
     Console:log("Animator timer: " .. animator.timer .. ", Frame: " .. animator.currentFrame)
+
     if animator.playing and animator.currentAnimation then
         animator.timer = animator.timer + dt
         Console:log("Timer updated: " .. animator.timer)
             
-        
         local currentFrame = animator.currentAnimation.frames[animator.currentFrame]
         if currentFrame and animator.timer >= currentFrame.duration then
             animator.timer = animator.timer - currentFrame.duration
             animator.currentFrame = animator.currentFrame + 1
             Console:log("Frame changed to: " .. animator.currentFrame)
             
+            -- Animasyon sonuna ulaşma durumu
             if animator.currentFrame > #animator.currentAnimation.frames then
-                animator.currentFrame = 1
-                Console:log("Animation looped")
+                if self.looping then
+                    animator.currentFrame = 1  -- Looping yapıyorsa ilk frame'e dön
+                    Console:log("Animation looped")
+                else
+                    animator.currentFrame = #animator.currentAnimation.frames  -- Son frame'de dur
+                    animator.playing = false  -- Animasyonu durdur
+                    Console:log("Animation ended")
+                end
             end
         end
     end
+    
+    
 end
 
 function Animator:draw()
@@ -214,27 +223,23 @@ function Animator:draw()
             end
             imgui.Separator()
 
-            local new_anim_name = ""
+            -- Yeni animasyon ismi
+            local new_anim_name = self.gridWindow.animationName
             if canRename then
-                print("Before Save : " .. entity.components.animator.currentAnimation.name)
                 imgui.InputText("Animation Name", new_anim_name, 100)
-                local tempText = new_anim_name
+               
                 if imgui.Button("OK") then
-                    print("\nOK : " .. entity.components.animator.currentAnimation.name)
-                    if entity.components.animator.currentAnimation.name == "New Animation" then
-                        print("BLOK CALISTI : " .. tempText)
-                        entity.components.animator.currentAnimation.name = tempText
-                        --self.gridWindow.animationName = new_anim_name
-                    end
+                    entity.components.animator.currentAnimation.name = new_anim_name
                     canRename = false
                 end
+                if entity.components.animator.currentAnimation.name == "New Animation" then
+                    entity.components.animator.currentAnimation.name = new_anim_name
+                end
+                
             end
-        
         end
-        
         imgui.End()
     end
-    
     -- Grid System penceresi
     if self.showGridSystem then
         imgui.SetNextWindowSize(400, 450)
@@ -412,6 +417,14 @@ function Animator:draw()
             if imgui.Button("Cancel") then
                 self.showGridSystem = false  -- Grid System'i kapat
             end
+
+            -- imgui.SameLine()
+            -- local isLooping = imgui.Checkbox("Is Trigger##Collider", self.looping)
+            -- if isLooping then
+            --     self.animations.looping = true
+            -- else
+            --     self.animations.looping = false
+            -- end
             
             imgui.End()
         end
