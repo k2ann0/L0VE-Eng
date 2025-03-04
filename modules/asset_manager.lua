@@ -76,7 +76,6 @@ function AssetManager:loadAsset(assetType, path)
     -- Daha önce yüklenmiş mi kontrol et
     for _, asset in ipairs(State.assets) do
         if asset.path == path then
-            Console:log("Asset already loaded: " .. path)
             return asset
         end
     end

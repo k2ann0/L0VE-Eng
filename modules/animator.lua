@@ -8,26 +8,22 @@ local Animator = {
     previewScale = 1,
     playing = false,
     timer = 0,
-    showGridSystem = false,  -- Yeni flag
+    showGridSystem = false,
     gridWindow = {
         animationName = "New Animation",
         colCount = 1,
         rowCount = 1,
         selectedFrames = {},
-        asset = nil,  -- Seçili asset'i tutmak için
-        entity = nil  -- Seçili entity'yi tutmak için
+        asset = nil,
+        entity = nil
+    },
+    renamingAnimation = {
+        isRenaming = false,
+        newName = "",
+        animationToRename = nil
     }
 }
 Animator.__index = Animator
-
-local rowCount, colCount = 1, 1
-local selectedFrames = {}  -- Seçili frame'leri tutacak tablo
-local gridSignal, startSignal = false, false
-local showGridWindow = false
-local currentAsset = nil  -- Geçerli asset'i tutacak değişken
-local lastClickTime = 0   -- Son tıklama zamanını tutacak değişken
-local animationName = ""  -- Animasyon ismi için yeni değişken
-local canRename = false
 
 function Animator:init()
     self.animations = {}
@@ -41,6 +37,26 @@ function Animator:init()
     self.numRows = 1
     -- Başlangıçta pencere kapalı olsun
     State.showWindows.animator = false
+end
+
+function Animator:startRenameAnimation(animation)
+    self.renamingAnimation.isRenaming = true
+    self.renamingAnimation.newName = animation.name
+    self.renamingAnimation.animationToRename = animation
+end
+
+function Animator:finishRenameAnimation()
+    if self.renamingAnimation.animationToRename and 
+       self.renamingAnimation.newName ~= "" then
+        -- Boş olmayan bir isim girilmişse güncelle
+        self.renamingAnimation.animationToRename.name = self.renamingAnimation.newName
+        Console:log("Renamed animation to: " .. self.renamingAnimation.newName)
+    end
+    
+    -- Rename modunu sıfırla
+    self.renamingAnimation.isRenaming = false
+    self.renamingAnimation.newName = ""
+    self.renamingAnimation.animationToRename = nil
 end
 
 function Animator:GridSystem(asset, entity)
@@ -91,13 +107,6 @@ function Animator:createFromImage(imageAsset, name)
     return animation
 end
 
--- Animasyonun hangi grid hücresinde olduğunu hesapla
-function Animator:GetFramePosition(frame)
-    local row = math.floor((frame - 1) / self.framesPerRow)
-    local col = (frame - 1) % self.framesPerRow
-    return col * self.frameWidth, row * self.frameHeight
-end
-
 function Animator:update(dt)
     if not State.showWindows.animator then return end
     if imgui.IsWindowHovered() then return end
@@ -107,33 +116,19 @@ function Animator:update(dt)
     if not entity or not entity.components.animator then return end
     
     local animator = entity.components.animator
-    Console:log("Animator timer: " .. animator.timer .. ", Frame: " .. animator.currentFrame)
-
     if animator.playing and animator.currentAnimation then
         animator.timer = animator.timer + dt
-        Console:log("Timer updated: " .. animator.timer)
             
         local currentFrame = animator.currentAnimation.frames[animator.currentFrame]
         if currentFrame and animator.timer >= currentFrame.duration then
             animator.timer = animator.timer - currentFrame.duration
             animator.currentFrame = animator.currentFrame + 1
-            Console:log("Frame changed to: " .. animator.currentFrame)
             
-            -- Animasyon sonuna ulaşma durumu
             if animator.currentFrame > #animator.currentAnimation.frames then
-                if self.looping then
-                    animator.currentFrame = 1  -- Looping yapıyorsa ilk frame'e dön
-                    Console:log("Animation looped")
-                else
-                    animator.currentFrame = #animator.currentAnimation.frames  -- Son frame'de dur
-                    animator.playing = false  -- Animasyonu durdur
-                    Console:log("Animation ended")
-                end
+                animator.currentFrame = 1
             end
         end
     end
-    
-    
 end
 
 function Animator:draw()
@@ -160,12 +155,37 @@ function Animator:draw()
         imgui.PushStyleColor(imgui.Col_Text, anim_text_color[1], anim_text_color[2], anim_text_color[3], anim_text_color[4])
         imgui.Text("Animations:")
         imgui.PopStyleColor()
+        
         if entity.components.animator.animations then
             for i, anim in ipairs(entity.components.animator.animations) do
-                if imgui.Selectable(anim.name, entity.components.animator.currentAnimation == anim) then
-                    entity.components.animator.currentAnimation = anim
-                    entity.components.animator.currentFrame = 1
-                    --entity.components.animator.timer = 0
+                local isSelected = entity.components.animator.currentAnimation == anim
+                
+                -- Eğer bu animasyon şu anda yeniden adlandırılıyorsa
+                if self.renamingAnimation.isRenaming and 
+                   self.renamingAnimation.animationToRename == anim then
+                    -- Yeni isim girişi
+                    self.renamingAnimation.newName = imgui.InputText(
+                        "##RenameAnimation" .. i, 
+                        self.renamingAnimation.newName, 
+                        100
+                    )
+                    
+                    -- Kaydet butonu
+                    imgui.SameLine()
+                    if imgui.Button("Save##" .. i) then
+                        self:finishRenameAnimation()
+                    end
+                    
+                    -- Dışarı tıklandığında kaydet
+                    if not imgui.IsItemActive() and imgui.IsMouseClicked(0) then
+                        self:finishRenameAnimation()
+                    end
+                else
+                    -- Normal liste görünümü
+                    if imgui.Selectable(anim.name, isSelected) then
+                        entity.components.animator.currentAnimation = anim
+                        entity.components.animator.currentFrame = 1
+                    end
                 end
                 
                 -- Sağ tık menüsü
@@ -177,8 +197,7 @@ function Animator:draw()
                         end
                     end
                     if imgui.MenuItem("Rename") then
-                        -- TODO: Yeniden adlandırma işlevi
-                        canRename = true
+                        self:startRenameAnimation(anim)
                     end
                     imgui.EndPopup()
                 end
@@ -221,25 +240,11 @@ function Animator:draw()
                     animator.currentAnimation.frames[animator.currentFrame].duration = duration
                 end
             end
-            imgui.Separator()
-
-            -- Yeni animasyon ismi
-            local new_anim_name = self.gridWindow.animationName
-            if canRename then
-                imgui.InputText("Animation Name", new_anim_name, 100)
-               
-                if imgui.Button("OK") then
-                    entity.components.animator.currentAnimation.name = new_anim_name
-                    canRename = false
-                end
-                if entity.components.animator.currentAnimation.name == "New Animation" then
-                    entity.components.animator.currentAnimation.name = new_anim_name
-                end
-                
-            end
         end
+        
         imgui.End()
     end
+    
     -- Grid System penceresi
     if self.showGridSystem then
         imgui.SetNextWindowSize(400, 450)

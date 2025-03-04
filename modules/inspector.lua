@@ -1,6 +1,5 @@
 local State = require "state"
 local Console = require "modules.console"
-local flip_h, flip_v
 local Inspector = {
     showWindow = true,
     componentTypes = {
@@ -35,13 +34,7 @@ function Inspector:drawTransformComponent(entity)
         
         -- Rotation
         local rotation = imgui.DragFloat("Rotation##Transform", entity.rotation or 0, 0.1, -360, 360)
-        if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end
-
-        -- Flips
-        flip_h, flip_v = false, false
-        if imgui.Checkbox("Flip_h", flip_h) then height = height * -1 end
-        if imgui.Checkbox("Flip_v", flip_v) then width = width * -1 end
-        
+        if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end        
     end
 end
 
@@ -50,8 +43,11 @@ function Inspector:drawSpriteComponent(entity)
         if imgui.Button("Add Sprite Component") then
             entity.components.sprite = {
                 image = nil,
-                color = {1, 1, 1, 1}
+                color = {1, 1, 1, 1},
+                flip_h = false,
+                flip_v = false
             }
+
         end
         return
     end
@@ -59,6 +55,10 @@ function Inspector:drawSpriteComponent(entity)
     if imgui.CollapsingHeader("Sprite") then
         -- Sprite seçimi
         imgui.Text("Image:")
+
+        -- Flip
+        entity.components.sprite.flip_h = imgui.Checkbox("Flip Horizontally##Sprite", entity.components.sprite.flip_h)
+        entity.components.sprite.flip_v = imgui.Checkbox("Flip Vertically##Sprite", entity.components.sprite.flip_v)
         
         -- Mevcut resmi göster
         local currentImage = entity.components.sprite.image and entity.components.sprite.image.name or "None"
@@ -70,6 +70,9 @@ function Inspector:drawSpriteComponent(entity)
         if imgui.BeginPopup("SpriteSelectPopup") then
             imgui.Text("Select an Image")
             imgui.Separator()
+            local sprite = entity.components.sprite
+            
+
             
             -- Asset listesinden sadece resimleri göster
             for _, asset in ipairs(State.assets) do

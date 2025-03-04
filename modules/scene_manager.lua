@@ -125,13 +125,22 @@ function SceneManager:drawEntities()
                 local img = sprite.image.data
                 local w, h = img:getDimensions()
                 img:setFilter("nearest", "nearest")
+                
+                -- Hesapla scale ve flip değerleri
+                local scaleX = entity.width / w
+                local scaleY = entity.height / h
+                
+                -- Flip kontrolü
+                if sprite.flip_h then scaleX = -scaleX end
+                if sprite.flip_v then scaleY = -scaleY end
+                
                 love.graphics.draw(
                     img,
                     entity.x + entity.width/2,
                     entity.y + entity.height/2,
                     entity.rotation or 0,
-                    entity.width / w,
-                    entity.height / h,
+                    scaleX,
+                    scaleY,
                     w/2, h/2
                 )
             else
