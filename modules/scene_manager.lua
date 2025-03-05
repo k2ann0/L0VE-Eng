@@ -42,6 +42,8 @@ function SceneManager:createEntity(x, y)
         rotation = 0,
         sprite = nil,
         animation = nil,
+        isPlayer = false,
+        playerSpeed = 0,
         components = {}
     }
     

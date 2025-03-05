@@ -1,3 +1,0 @@
-> Spritelar Flip_H / Flip_V ile entegre çalışıyor
-> Hiyerarşide sürükle bırak işlemleri çalışıyor. Son kontroller yapılmalı
-> Assetler sürüklenerek sahneye ekleniyor

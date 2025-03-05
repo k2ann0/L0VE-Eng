@@ -34,7 +34,29 @@ function Inspector:drawTransformComponent(entity)
         
         -- Rotation
         local rotation = imgui.DragFloat("Rotation##Transform", entity.rotation or 0, 0.1, -360, 360)
-        if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end        
+        if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end      
+        
+        -- Player Check
+        entity.isPlayer = imgui.Checkbox("Is Player : ", entity.isPlayer)
+        local speed = imgui.SliderFloat("Speed : ", entity.playerSpeed or 1, 0, 250)
+      -- TODO: SLIDER FLOAT KULLANARAK SPEED AL
+      
+        entity.playerSpeed = speed
+            if entity.isPlayer then
+                if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
+                    entity.x = entity.x - entity.playerSpeed
+                end
+                if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+                    entity.x = entity.x + entity.playerSpeed
+                end
+                if love.keyboard.isDown("up") or love.keyboard.isDown("w") then
+                    entity.y = entity.y - entity.playerSpeed
+                end
+                if love.keyboard.isDown("down") or love.keyboard.isDown("s") then
+                    entity.y = entity.y + entity.playerSpeed
+                end
+            end
+        
     end
 end
 
