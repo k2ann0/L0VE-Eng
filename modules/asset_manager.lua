@@ -220,6 +220,32 @@ function AssetManager:draw()
                                 Console:log("Please select an entity with Animator component!")
                             end
                         end
+
+
+                        if item.type == "image" and imgui.MenuItem("Create Tilemap") then
+                            -- First load the asset
+                            local asset = self:loadAsset(item.type, item.path)
+                            
+                            -- Check if a selected entity exists
+                            if State.selectedEntity then
+                                -- Add tilemap component if it doesn't exist
+                                if not State.selectedEntity.components.tilemap then
+                                    State.selectedEntity.components.tilemap = {
+                                        name = "New Tilemap",
+                                        tiles = {},
+                                        colCount = 10,
+                                        rowCount = 10,
+                                        tileSize = 32
+                                    }
+                                end
+                                
+                                -- Open the tilemap editor with this tileset
+                                engine.tilemap:GridSystem(asset, State.selectedEntity)
+                                State.showWindows.tilemap = true
+                            else
+                                Console:log("Please select an entity first!")
+                            end
+                        end
                         
                         imgui.EndPopup()
                     end

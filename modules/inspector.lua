@@ -7,14 +7,24 @@ local Inspector = {
         "Sprite",
         "Collider",
         "Script",
-        "Animation"
+        "Animation",
+        "Tilemap"
     }
 }
 
 function Inspector:init()
     State.showWindows.inspector = true
     State.windowSizes.inspector = {width = 300, height = 400}
+    self.componentTypes = {
+        "Transform",
+        "Sprite",
+        "Collider",
+        "Script",
+        "Animation",
+        "Tilemap"
+    }
 end
+
 
 function Inspector:drawTransformComponent(entity)
     if imgui.CollapsingHeader("Transform", imgui.TreeNodeFlags_DefaultOpen) then
@@ -255,6 +265,91 @@ function Inspector:drawAnimatorComponent(entity)
     end
 end
 
+function Inspector:drawTilemapComponent(entity)
+    if not entity.components.tilemap then
+        if imgui.Button("Add Tilemap Component") then
+            entity.components.tilemap = {
+                width = 20,
+                height = 15,
+                tileSize = 32,
+                layers = {
+                    {
+                        name = "Background",
+                        tiles = {},
+                        visible = true
+                    },
+                    {
+                        name = "Main",
+                        tiles = {},
+                        visible = true
+                    },
+                    {
+                        name = "Foreground",
+                        tiles = {},
+                        visible = true
+                    }
+                },
+                tileset = nil
+            }
+            
+            -- Initialize empty tiles for all layers
+            for layerIndex, layer in ipairs(entity.components.tilemap.layers) do
+                layer.tiles = {}
+                for y = 1, entity.components.tilemap.height do
+                    layer.tiles[y] = {}
+                    for x = 1, entity.components.tilemap.width do
+                        layer.tiles[y][x] = {
+                            id = 0,  -- 0 means empty tile
+                            rotation = 0,
+                            flipX = false,
+                            flipY = false
+                        }
+                    end
+                end
+            end
+            
+            -- Update entity dimensions based on tilemap size
+            entity.width = entity.components.tilemap.width * entity.components.tilemap.tileSize
+            entity.height = entity.components.tilemap.height * entity.components.tilemap.tileSize
+            
+            -- Open the tilemap editor window
+            State.showWindows.tilemap = true
+            engine.tilemap.showTilemapWindow = true
+            
+            Console:log("Added tilemap component to: " .. (entity.name or "unnamed"))
+        end
+        return
+    end
+
+    if imgui.CollapsingHeader("Tilemap") then
+        -- Show basic tilemap info
+        if entity.components.tilemap.tileset then
+            imgui.Text("Tileset: " .. entity.components.tilemap.tileset.image.name)
+        else
+            imgui.Text("Tileset: None")
+        end
+        
+        imgui.Text("Size: " .. entity.components.tilemap.width .. "x" .. entity.components.tilemap.height)
+        imgui.Text("Tile Size: " .. entity.components.tilemap.tileSize .. "px")
+        imgui.Text("Layers: " .. (entity.components.tilemap.layers and #entity.components.tilemap.layers or 0))
+        
+        -- Open editor button
+        if imgui.Button("Open Tilemap Editor") then
+            State.showWindows.tilemap = true
+            engine.tilemap.showTilemapWindow = true
+        end
+        
+        -- Component removal button
+        if imgui.Button("Remove Tilemap Component") then
+            entity.components.tilemap = nil
+            State.showWindows.tilemap = false
+            engine.tilemap.showTilemapWindow = false
+            Console:log("Removed tilemap component from: " .. (entity.name or "unnamed"))
+        end
+    end
+end
+
+
 function Inspector:draw()
     if not State.showWindows.inspector then return end
     
@@ -277,7 +372,8 @@ function Inspector:draw()
             self:drawSpriteComponent(entity)
             self:drawColliderComponent(entity)
             self:drawAnimatorComponent(entity)
-            
+            self:drawTilemapComponent(entity)
+
             -- Add Component Button
             if imgui.Button("Add Component") then
                 imgui.OpenPopup("AddComponentPopup")

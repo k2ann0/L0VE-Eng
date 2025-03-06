@@ -14,6 +14,7 @@ local function loadModules()
     local SceneManager = require "modules.scene_manager"
     local Hierarchy = require "modules.hierarchy"
     local Inspector = require "modules.inspector"
+    local Tilemap = require "modules.tilemap"
     
     
     -- Initialize modules
@@ -24,6 +25,7 @@ local function loadModules()
     SceneManager:init()
     Hierarchy:init()
     Inspector:init()
+    Tilemap:init()
     
     -- Log initialization
     Console:log("Engine initialized")
@@ -37,7 +39,8 @@ local function loadModules()
         animator = Animator,
         sceneManager = SceneManager,
         hierarchy = Hierarchy,
-        inspector = Inspector
+        inspector = Inspector,
+        tilemap = Tilemap
     }
 end
 
@@ -62,6 +65,7 @@ function love.update(dt)
     engine.camera:update(dt)
     engine.animator:update(dt)
     engine.sceneManager:update(dt)
+    engine.tilemap:update(dt)
 
     engine.console:update()
     
@@ -72,6 +76,7 @@ function love.update(dt)
     engine.hierarchy:draw()
     engine.inspector:draw()
     engine.sceneManager:drawSceneEditor()
+    engine.tilemap:drawTilemapEditor()
     
     engine.sceneManager:handleInput()
 end

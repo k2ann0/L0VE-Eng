@@ -94,6 +94,48 @@ function SceneManager:drawEntities()
     for _, entity in ipairs(self.entities) do
         -- Sprite veya Animator component'i varsa
         if entity.components then
+            if entity.components and entity.components.tilemap then
+                engine.tilemap:drawTilemap(entity)
+                local tilemap = entity.components.tilemap
+                if tilemap.source and tilemap.tiles then
+                    -- Render the tilemap
+                    love.graphics.setColor(1, 1, 1, 1)
+                    
+                    for y = 1, tilemap.rowCount do
+                        for x = 1, tilemap.colCount do
+                            local tileIndex = tilemap.tiles[y] and tilemap.tiles[y][x]
+                            if tileIndex then
+                                -- Calculate tile position in the tileset
+                                local tilesetWidth = tilemap.source.data:getWidth()
+                                local tilesPerRow = math.floor(tilesetWidth / tilemap.tileSize)
+                                
+                                local tileRow = math.floor((tileIndex - 1) / tilesPerRow)
+                                local tileCol = (tileIndex - 1) % tilesPerRow
+                                
+                                -- Create a quad for the tile
+                                local quad = love.graphics.newQuad(
+                                    tileCol * tilemap.tileSize,
+                                    tileRow * tilemap.tileSize,
+                                    tilemap.tileSize,
+                                    tilemap.tileSize,
+                                    tilemap.source.data:getDimensions()
+                                )
+                                
+                                -- Draw the tile at its position in the grid
+                                local drawX = entity.x + (x - 1) * tilemap.tileSize
+                                local drawY = entity.y + (y - 1) * tilemap.tileSize
+                                
+                                love.graphics.draw(
+                                    tilemap.source.data,
+                                    quad,
+                                    drawX,
+                                    drawY
+                                )
+                            end
+                        end
+                    end
+                end
+            end
             if entity.components.animator and entity.components.animator.currentAnimation then
                 -- Animasyon çiz (playing olsun veya olmasın)
                 local animator = entity.components.animator

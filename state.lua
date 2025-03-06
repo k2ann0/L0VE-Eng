@@ -24,6 +24,7 @@ local State = {
         sceneView = {width = 800, height = 600},
         hierarchy = {width = 250, height = 400},
         inspector = {width = 300, height = 400},
+        tilemap = {width = 500, height = 750},
         error = {width = 300, height = 200}
     },
     showWindows = {
@@ -33,7 +34,8 @@ local State = {
         sceneEditor = true,
         properties = true,
         hierarchy = true,
-        inspector = true
+        inspector = true,
+        tilemap = true
     }
 }
 
