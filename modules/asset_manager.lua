@@ -223,30 +223,78 @@ function AssetManager:draw()
 
 
                         if item.type == "image" and imgui.MenuItem("Create Tilemap") then
-                            -- First load the asset
+                            -- İlk olarak asset'i yükle
                             local asset = self:loadAsset(item.type, item.path)
+                            Console:log("Attempting to create tilemap with asset: " .. asset.name, "info")
                             
-                            -- Check if a selected entity exists
+                            -- Asset'in yüklenip yüklenmediğini kontrol et
+                            if not asset or not asset.data then
+                                Console:log("Failed to load asset properly", "error")
+                                return
+                            end
+                            
+                            -- Seçili bir entity var mı kontrol et
                             if State.selectedEntity then
-                                -- Add tilemap component if it doesn't exist
-                                if not State.selectedEntity.components.tilemap then
-                                    State.selectedEntity.components.tilemap = {
-                                        name = "New Tilemap",
-                                        tiles = {},
-                                        colCount = 10,
-                                        rowCount = 10,
-                                        tileSize = 32
-                                    }
+                                -- Eski tilemap bileşeni varsa temizle
+                                if State.selectedEntity.components.tilemap then
+                                    State.selectedEntity.components.tilemap = nil
+                                    Console:log("Cleared existing tilemap component", "info")
                                 end
                                 
-                                -- Open the tilemap editor with this tileset
-                                engine.tilemap:GridSystem(asset, State.selectedEntity)
-                                State.showWindows.tilemap = true
+                                -- Yeni tilemap bileşeni oluştur
+                                State.selectedEntity.components.tilemap = {
+                                    width = 10,
+                                    height = 10,
+                                    tileSize = 32,
+                                    layers = {
+                                        {
+                                            name = "Background",
+                                            tiles = {},
+                                            visible = true
+                                        }
+                                    }
+                                }
+                                
+                                -- Layer'ı boş tile'larla doldur
+                                local layer = State.selectedEntity.components.tilemap.layers[1]
+                                for y = 1, State.selectedEntity.components.tilemap.height do
+                                    layer.tiles[y] = {}
+                                    for x = 1, State.selectedEntity.components.tilemap.width do
+                                        layer.tiles[y][x] = {
+                                            id = 0,
+                                            rotation = 0,
+                                            flipX = false,
+                                            flipY = false
+                                        }
+                                    end
+                                end
+                                
+                                -- Tileset'i yükle
+                                local tileset = engine.tilemap:loadTileset(asset)
+                                if tileset then
+                                    State.selectedEntity.components.tilemap.tileset = tileset
+                                    Console:log("Successfully created tilemap with tileset: " .. asset.name, "info")
+                                    
+                                    -- Entity boyutlarını güncelle
+                                    State.selectedEntity.width = State.selectedEntity.components.tilemap.width * 
+                                                                State.selectedEntity.components.tilemap.tileSize
+                                    State.selectedEntity.height = State.selectedEntity.components.tilemap.height * 
+                                                                 State.selectedEntity.components.tilemap.tileSize
+                                    
+                                    -- Tilemap editörünü aç
+                                    engine.tilemap.showTilemapWindow = true
+                                    State.showWindows.tilemap = true
+                                    
+                                    -- İlk tile ve layer'ı seç
+                                    engine.tilemap.currentTile = 1
+                                    engine.tilemap.selectedLayer = 1
+                                else
+                                    Console:log("Failed to create tileset from asset", "error")
+                                end
                             else
-                                Console:log("Please select an entity first!")
+                                Console:log("Please select an entity first!", "warning")
                             end
                         end
-                        
                         imgui.EndPopup()
                     end
                     

@@ -188,13 +188,15 @@ function SceneManager:drawEntities()
                     w/2, h/2
                 )
             else
-                -- Placeholder çiz
-                love.graphics.setColor(0.5, 0.5, 0.5, 1)
-                love.graphics.rectangle("fill", entity.x, entity.y, entity.width, entity.height)
-                love.graphics.setColor(0.8, 0.8, 0.8, 1)
-                love.graphics.rectangle("line", entity.x, entity.y, entity.width, entity.height)
-                love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.print(entity.name or "Entity", entity.x + 2, entity.y + 2)
+                if not entity.components.tilemap then
+                    -- Tilemap yoksa Placeholder çiz
+                    love.graphics.setColor(0.5, 0.5, 0.5, 1)
+                    love.graphics.rectangle("fill", entity.x, entity.y, entity.width, entity.height)
+                    love.graphics.setColor(0.8, 0.8, 0.8, 1)
+                    love.graphics.rectangle("line", entity.x, entity.y, entity.width, entity.height)
+                    love.graphics.setColor(1, 1, 1, 1)
+                    love.graphics.print(entity.name or "Entity", entity.x + 2, entity.y + 2)
+                end
             end
             
             -- Seçili entity'nin etrafına çizgi çiz
