@@ -1,13 +1,10 @@
 local State = require "state"
 local Console = require "modules.console"
+
 local Inspector = {
     showWindow = true,
     componentTypes = {
         "Transform",
-        "Sprite",
-        "Collider",
-        "Script",
-        "Animation",
         "Tilemap"
     }
 }
@@ -15,253 +12,46 @@ local Inspector = {
 function Inspector:init()
     State.showWindows.inspector = true
     State.windowSizes.inspector = {width = 300, height = 400}
-    self.componentTypes = {
-        "Transform",
-        "Sprite",
-        "Collider",
-        "Script",
-        "Animation",
-        "Tilemap"
-    }
 end
-
 
 function Inspector:drawTransformComponent(entity)
-    if imgui.CollapsingHeader("Transform", imgui.TreeNodeFlags_DefaultOpen) then
-        -- Position
-        local x = imgui.DragFloat("X##Transform", entity.x, 0.1, -1000, 1000)
-        if x ~= entity.x then entity.x = x end
-        
-        local y = imgui.DragFloat("Y##Transform", entity.y, 0.1, -1000, 1000)
-        if y ~= entity.y then entity.y = y end
-        
-        -- Scale
-        local width = imgui.DragFloat("Scale X##Transform", entity.width, 0.1, 1, 1000)
-        if width ~= entity.width then entity.width = width end
-        
-        local height = imgui.DragFloat("Scale Y##Transform", entity.height, 0.1, 1, 1000)
-        if height ~= entity.height then entity.height = height end
-        
-        -- Rotation
-        local rotation = imgui.DragFloat("Rotation##Transform", entity.rotation or 0, 0.1, -360, 360)
-        if rotation ~= (entity.rotation or 0) then entity.rotation = rotation end      
-        
-        -- Player Check
-        entity.isPlayer = imgui.Checkbox("Is Player : ", entity.isPlayer)
-        local speed = imgui.SliderFloat("Speed : ", entity.playerSpeed or 1, 0, 250)
-      -- TODO: SLIDER FLOAT KULLANARAK SPEED AL
-      
-        entity.playerSpeed = speed
-            if entity.isPlayer then
-                if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
-                    entity.x = entity.x - entity.playerSpeed
-                end
-                if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
-                    entity.x = entity.x + entity.playerSpeed
-                end
-                if love.keyboard.isDown("up") or love.keyboard.isDown("w") then
-                    entity.y = entity.y - entity.playerSpeed
-                end
-                if love.keyboard.isDown("down") or love.keyboard.isDown("s") then
-                    entity.y = entity.y + entity.playerSpeed
-                end
-            end
-        
+    imgui.Text("Transform")
+    
+    -- Entity'nin değerlerini başlangıçta sayısal değerlere dönüştür
+    if type(entity.x) ~= "number" then entity.x = tonumber(entity.x) or 0 end
+    if type(entity.y) ~= "number" then entity.y = tonumber(entity.y) or 0 end
+    if type(entity.width) ~= "number" then entity.width = tonumber(entity.width) or 32 end
+    if type(entity.height) ~= "number" then entity.height = tonumber(entity.height) or 32 end
+    if type(entity.rotation) ~= "number" then entity.rotation = tonumber(entity.rotation) or 0 end
+    
+    -- X pozisyonu
+    local changed, newValue = imgui.DragFloat("X##Transform", entity.x, 1.0)
+    if changed and type(newValue) == "number" then 
+        entity.x = newValue
     end
-end
-
-function Inspector:drawSpriteComponent(entity)
-    if not entity.components.sprite then
-        if imgui.Button("Add Sprite Component") then
-            entity.components.sprite = {
-                image = nil,
-                color = {1, 1, 1, 1},
-                flip_h = false,
-                flip_v = false
-            }
-
-        end
-        return
+    
+    -- Y pozisyonu
+    changed, newValue = imgui.DragFloat("Y##Transform", entity.y, 1.0)
+    if changed and type(newValue) == "number" then 
+        entity.y = newValue
     end
-
-    if imgui.CollapsingHeader("Sprite") then
-        -- Sprite seçimi
-        imgui.Text("Image:")
-
-        -- Flip
-        entity.components.sprite.flip_h = imgui.Checkbox("Flip Horizontally##Sprite", entity.components.sprite.flip_h)
-        entity.components.sprite.flip_v = imgui.Checkbox("Flip Vertically##Sprite", entity.components.sprite.flip_v)
-        
-        -- Mevcut resmi göster
-        local currentImage = entity.components.sprite.image and entity.components.sprite.image.name or "None"
-        if imgui.Button(currentImage .. "##SpriteSelect") then
-            imgui.OpenPopup("SpriteSelectPopup")
-        end
-        
-        -- Resim seçme popup'ı
-        if imgui.BeginPopup("SpriteSelectPopup") then
-            imgui.Text("Select an Image")
-            imgui.Separator()
-            local sprite = entity.components.sprite
-            
-
-            
-            -- Asset listesinden sadece resimleri göster
-            for _, asset in ipairs(State.assets) do
-                if asset.type == "image" then
-                    if imgui.Selectable(asset.name) then
-                        entity.components.sprite.image = asset
-                        Console:log("Selected image: " .. asset.name .. " for entity: " .. (entity.name or "unnamed"))
-                    end
-                end
-            end
-            imgui.EndPopup()
-        end
-        
-        -- Clear image button
-        imgui.SameLine()
-        if imgui.Button("X##ClearSprite") then
-            entity.components.sprite.image = nil
-            Console:log("Cleared sprite image for entity: " .. (entity.name or "unnamed"))
-        end
-        
-        -- Color picker
-        local color = entity.components.sprite.color
-        color[1], color[2], color[3] = imgui.ColorEdit3("Color##Sprite", color[1], color[2], color[3])
-        
-        -- Alpha slider
-        imgui.SliderFloat("Alpha##Sprite", color[4], 0, 1)
-        
-        -- Component'i silme butonu
-        if imgui.Button("Remove Sprite Component") then
-            entity.components.sprite = nil
-            Console:log("Removed sprite component from entity: " .. (entity.name or "unnamed"))
-        end
+    
+    -- Genişlik
+    changed, newValue = imgui.DragFloat("Width##Transform", entity.width, 1.0)
+    if changed and type(newValue) == "number" then 
+        entity.width = newValue
     end
-end
-
-function Inspector:drawColliderComponent(entity)
-    if not entity.components.collider then
-        if imgui.Button("Add Collider Component") then
-            entity.components.collider = {
-                body = nil,
-                shape = nil,
-                fixture = nil,
-                type = "box",
-                width = entity.width,
-                height = entity.height,
-                offset = {x = 0, y = 0},
-                isTrigger = false
-            }
-        end
-        return
+    
+    -- Yükseklik
+    changed, newValue = imgui.DragFloat("Height##Transform", entity.height, 1.0)
+    if changed and type(newValue) == "number" then 
+        entity.height = newValue
     end
-
-    if imgui.CollapsingHeader("Collider") then
-        -- Collider tipi seçimi
-        local colliderTypes = "box\0circle\0\0"  -- ImGui için null-terminated string
-        local currentTypeIndex = entity.components.collider.type == "box" and 0 or 1
-        
-        -- Combo box
-        local newIndex = imgui.Combo("Type##Collider", currentTypeIndex, colliderTypes)
-        if newIndex ~= currentTypeIndex then
-            entity.components.collider.type = newIndex == 0 and "box" or "circle"
-            Console:log("Changed collider type to: " .. entity.components.collider.type)
-        end
-        
-        -- Size
-        local width = imgui.DragFloat("Width##Collider", entity.components.collider.width or 64, 0.1, 1, 1000)
-        if width ~= entity.components.collider.width then 
-            entity.components.collider.width = width 
-        end
-        
-        local height = imgui.DragFloat("Height##Collider", entity.components.collider.height or 64, 0.1, 1, 1000)
-        if height ~= entity.components.collider.height then 
-            entity.components.collider.height = height 
-        end
-        
-        -- Offset
-        local offsetX = imgui.DragFloat("Offset X##Collider", 0 or entity.components.collider.offset.x, 0.1, -100, 100)
-        if offsetX ~= 0 or entity.components.collider.offset.x then 
-            entity.components.collider.offset.x = offsetX 
-        end
-        
-        local offsetY = imgui.DragFloat("Offset Y##Collider", 0 or entity.components.collider.offset.y, 0.1, -100, 100)
-        if offsetY ~= 0 or entity.components.collider.offset.y then 
-            entity.components.collider.offset.y = offsetY 
-        end
-        
-        -- Is Trigger
-        local isTrigger = imgui.Checkbox("Is Trigger##Collider", entity.components.collider.isTrigger)
-        if isTrigger ~= entity.components.collider.isTrigger then 
-            entity.components.collider.isTrigger = isTrigger 
-        end
-
-        if entity.components.collider.type == "box" then
-            entity.components.collider.body = love.physics.newBody(State.world, 
-            entity.components.collider.width,
-            entity.components.collider.height,
-            "dynamic")
-
-            entity.components.collider.shape = love.physics.newRectangleShape(
-            entity.components.collider.width,
-            entity.components.collider.height,
-            entity.width, entity.height)
-
-            entity.components.collider.fixture = love.physics.newFixture(entity.components.collider.body, entity.components.collider.shape, 2)
-
-        end
-
-        if entity.components.collider.type == "circle" then
-            entity.components.collider.body = love.physics.newBody(State.world, 
-            entity.components.collider.width,
-            entity.components.collider.height,
-            "dynamic")
-
-            entity.components.collider.shape = love.physics.newCircleShape(entity.components.collider.width)
-
-            entity.components.collider.fixture = love.physics.newFixture(entity.components.collider.body, entity.components.collider.shape, 2)
-
-        end
-        
-        -- Component'i silme butonu
-        if imgui.Button("Remove Collider Component") then
-            entity.components.collider = nil
-            Console:log("Removed collider component from entity: " .. (entity.name or "unnamed"))
-        end
-    end
-end
-
-function Inspector:drawAnimatorComponent(entity)
-    if not entity.components.animator then
-        if imgui.Button("Add Animator Component") then
-            entity.components.animator = {
-                currentAnimation = nil,
-                animations = {},
-                playing = false,
-                timer = 0,
-                currentFrame = 1
-            }
-            -- Animator penceresini aç
-            State.showWindows.animator = true
-            Console:log("Added animator component to: " .. (entity.name or "unnamed"))
-        end
-        return
-    end
-
-    if imgui.CollapsingHeader("Animator") then
-        -- Animator penceresini açma butonu
-        if imgui.Button("Open Animator Window##AnimatorOpen") then
-            State.showWindows.animator = true
-        end
-        
-        -- Component'i silme butonu
-        if imgui.Button("Remove Animator Component") then
-            entity.components.animator = nil
-            -- Animator penceresini kapat
-            State.showWindows.animator = false
-            Console:log("Removed animator component from: " .. (entity.name or "unnamed"))
-        end
+    
+    -- Rotasyon
+    changed, newValue = imgui.DragFloat("Rotation##Transform", entity.rotation, 0.01)
+    if changed and type(newValue) == "number" then 
+        entity.rotation = newValue
     end
 end
 
@@ -277,29 +67,19 @@ function Inspector:drawTilemapComponent(entity)
                         name = "Background",
                         tiles = {},
                         visible = true
-                    },
-                    {
-                        name = "Main",
-                        tiles = {},
-                        visible = true
-                    },
-                    {
-                        name = "Foreground",
-                        tiles = {},
-                        visible = true
                     }
                 },
                 tileset = nil
             }
             
-            -- Initialize empty tiles for all layers
+            -- Initialize empty tiles
             for layerIndex, layer in ipairs(entity.components.tilemap.layers) do
                 layer.tiles = {}
                 for y = 1, entity.components.tilemap.height do
                     layer.tiles[y] = {}
                     for x = 1, entity.components.tilemap.width do
                         layer.tiles[y][x] = {
-                            id = 0,  -- 0 means empty tile
+                            id = 0,
                             rotation = 0,
                             flipX = false,
                             flipY = false
@@ -308,13 +88,12 @@ function Inspector:drawTilemapComponent(entity)
                 end
             end
             
-            -- Update entity dimensions based on tilemap size
+            -- Update entity dimensions
             entity.width = entity.components.tilemap.width * entity.components.tilemap.tileSize
             entity.height = entity.components.tilemap.height * entity.components.tilemap.tileSize
             
-            -- Open the tilemap editor window
+            -- Open tilemap editor window
             State.showWindows.tilemap = true
-            engine.tilemap.showTilemapWindow = true
             
             Console:log("Added tilemap component to: " .. (entity.name or "unnamed"))
         end
@@ -324,31 +103,27 @@ function Inspector:drawTilemapComponent(entity)
     if imgui.CollapsingHeader("Tilemap") then
         -- Show basic tilemap info
         if entity.components.tilemap.tileset then
-            imgui.Text("Tileset: " .. entity.components.tilemap.tileset.image.name)
+            imgui.Text("Tileset: " .. entity.components.tilemap.tileset.name)
         else
             imgui.Text("Tileset: None")
         end
         
         imgui.Text("Size: " .. entity.components.tilemap.width .. "x" .. entity.components.tilemap.height)
         imgui.Text("Tile Size: " .. entity.components.tilemap.tileSize .. "px")
-        imgui.Text("Layers: " .. (entity.components.tilemap.layers and #entity.components.tilemap.layers or 0))
         
         -- Open editor button
         if imgui.Button("Open Tilemap Editor") then
             State.showWindows.tilemap = true
-            engine.tilemap.showTilemapWindow = true
         end
         
-        -- Component removal button
+        -- Remove component button
         if imgui.Button("Remove Tilemap Component") then
             entity.components.tilemap = nil
             State.showWindows.tilemap = false
-            engine.tilemap.showTilemapWindow = false
             Console:log("Removed tilemap component from: " .. (entity.name or "unnamed"))
         end
     end
 end
-
 
 function Inspector:draw()
     if not State.showWindows.inspector then return end
@@ -369,11 +144,8 @@ function Inspector:draw()
             
             -- Draw components
             self:drawTransformComponent(entity)
-            self:drawSpriteComponent(entity)
-            self:drawColliderComponent(entity)
-            self:drawAnimatorComponent(entity)
             self:drawTilemapComponent(entity)
-
+            
             -- Add Component Button
             if imgui.Button("Add Component") then
                 imgui.OpenPopup("AddComponentPopup")

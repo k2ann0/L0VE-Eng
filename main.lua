@@ -56,6 +56,13 @@ function love.load()
     love.window.setTitle("LÖVE2D Game Engine Editor")
     love.window.maximize = true
     love.graphics.setDefaultFilter("nearest", "nearest")
+    
+    -- Örnek bir tileset yükle ve harita oluştur (test için)
+    if love.filesystem.getInfo("assets/tilesets/example.png") then
+        engine.tilemap:loadTileset("assets/tilesets/example.png", "Örnek Tileset", 32)
+        engine.tilemap:createMap(20, 15, "Yeni Harita")
+        engine.console:log("Örnek tileset ve harita yüklendi")
+    end
 end
 
 function love.update(dt)
@@ -76,7 +83,7 @@ function love.update(dt)
     engine.hierarchy:draw()
     engine.inspector:draw()
     engine.sceneManager:drawSceneEditor()
-    engine.tilemap:drawTilemapEditor()
+    engine.tilemap:drawTilemapWindow()
     
     engine.sceneManager:handleInput()
 end
@@ -89,6 +96,9 @@ function love.draw()
     engine.sceneManager:drawGrid()
     engine.sceneManager:drawEntities()
 
+    -- Tilemap'i çiz
+    engine.tilemap:drawInScene()
+    
     engine.animator:draw()
     
     engine.camera:unset()

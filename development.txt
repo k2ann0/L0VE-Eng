@@ -13,3 +13,663 @@
 ==============================================================================
 >
 ==============================================================================
+
+
+
+local State = require "state"
+local Console = require "modules.console"
+local SceneManager = require "modules.scene_manager"
+local Camera = require "modules.camera"
+
+local Tilemap = {
+    tilesets = {},
+    maps = {},
+    activeTileset = nil,
+    activeMap = nil,
+    tileSize = 32,
+    gridSize = 32,
+    selectedTile = nil,
+    hoveredTile = nil,
+    showGrid = true,
+    windowOpen = true,
+    previewScale = 2.0,
+    mapScale = 1.0
+}
+
+function Tilemap:init()
+    Console:log("Tilemap modülü başlatıldı")
+end
+
+function Tilemap:loadTileset(path, name, tileSize)
+    local tileset = {
+        image = love.graphics.newImage(path),
+        name = name,
+        tileSize = tileSize or self.tileSize,
+        path = path
+    }
+    
+    tileset.width = tileset.image:getWidth()
+    tileset.height = tileset.image:getHeight()
+    tileset.cols = math.floor(tileset.width / tileset.tileSize)
+    tileset.rows = math.floor(tileset.height / tileset.tileSize)
+    
+    self.tilesets[name] = tileset
+    
+    if not self.activeTileset then
+        self.activeTileset = tileset
+    end
+    
+    Console:log("Tileset yüklendi: " .. name)
+    return tileset
+end
+
+function Tilemap:createMap(width, height, name)
+    local map = {
+        width = width,
+        height = height,
+        name = name,
+        layers = {},
+        tileSize = self.tileSize
+    }
+    
+    -- Varsayılan katman oluştur
+    self:addLayer(map, "Zemin")
+    
+    self.maps[name] = map
+    
+    if not self.activeMap then
+        self.activeMap = map
+    end
+    
+    Console:log("Harita oluşturuldu: " .. name)
+    return map
+end
+
+function Tilemap:addLayer(map, name)
+    local layer = {
+        name = name,
+        tiles = {},
+        visible = true
+    }
+    
+    -- Boş ızgara oluştur
+    for y = 1, map.height do
+        layer.tiles[y] = {}
+        for x = 1, map.width do
+            layer.tiles[y][x] = nil -- nil = boş karo
+        end
+    end
+    
+    table.insert(map.layers, layer)
+    return layer
+end
+
+function Tilemap:setTile(map, layer, x, y, tilesetName, tileId)
+    if not map or not map.layers[layer] then 
+        Console:log("Hata: Geçersiz harita veya katman")
+        return 
+    end
+    
+    local layerData = map.layers[layer]
+    
+    if x < 1 or x > map.width or y < 1 or y > map.height then
+        Console:log(string.format("Hata: Geçersiz karo pozisyonu (%d,%d)", x, y))
+        return
+    end
+    
+    if not tilesetName or not tileId then
+        Console:log("Hata: Geçersiz tileset veya karo ID")
+        return
+    end
+    
+    -- Tileset'in var olduğundan emin ol
+    if not self.tilesets[tilesetName] then
+        Console:log("Hata: Tileset bulunamadı: " .. tilesetName)
+        return
+    end
+    
+    layerData.tiles[y][x] = {
+        tilesetName = tilesetName,
+        tileId = tileId
+    }
+    
+    Console:log(string.format("Karo ayarlandı: %s, ID: %d, Pozisyon: %d,%d", 
+        tilesetName, tileId, x, y))
+end
+
+function Tilemap:getTileFromTileset(tileset, tileId)
+    if not tileset then return nil end
+    
+    local col = (tileId - 1) % tileset.cols
+    local row = math.floor((tileId - 1) / tileset.cols)
+    
+    return {
+        quad = love.graphics.newQuad(
+            col * tileset.tileSize, 
+            row * tileset.tileSize, 
+            tileset.tileSize, 
+            tileset.tileSize, 
+            tileset.width, 
+            tileset.height
+        ),
+        tileId = tileId,
+        col = col,
+        row = row
+    }
+end
+
+function Tilemap:getTileIdFromPosition(tileset, x, y)
+    if not tileset then return nil end
+    
+    local col = math.floor(x / tileset.tileSize)
+    local row = math.floor(y / tileset.tileSize)
+    
+    if col < 0 or col >= tileset.cols or row < 0 or row >= tileset.rows then
+        return nil
+    end
+    
+    return row * tileset.cols + col + 1
+end
+
+-- Yardımcı fonksiyon: Ekran koordinatlarını dünya koordinatlarına dönüştür
+function Tilemap:screenToWorld(screenX, screenY)
+    -- Camera modülünün yapısına bağlı olarak farklı yaklaşımlar kullanabiliriz
+    
+    -- Yöntem 1: Eğer Camera modülü doğrudan screenToWorld fonksiyonu sağlıyorsa
+    if Camera.screenToWorld then
+        return Camera:screenToWorld(screenX, screenY)
+    end
+    
+    -- Yöntem 2: Eğer Camera modülü x, y ve scale değerlerini sağlıyorsa
+    if Camera.x and Camera.y and Camera.scaleX and Camera.scaleY then
+        local worldX = (screenX - love.graphics.getWidth() / 2) / Camera.scaleX + Camera.x
+        local worldY = (screenY - love.graphics.getHeight() / 2) / Camera.scaleY + Camera.y
+        return worldX, worldY
+    end
+    
+    -- Yöntem 3: Eğer Camera modülü başka bir yapıya sahipse
+    -- Bu durumda Camera modülünün yapısına göre özel bir dönüşüm yapmalıyız
+    
+    -- Varsayılan olarak, hiçbir dönüşüm yapmadan ekran koordinatlarını döndür
+    Console:log("Uyarı: Camera modülü screenToWorld fonksiyonu bulunamadı, dönüşüm yapılamıyor.")
+    return screenX, screenY
+end
+
+function Tilemap:update(dt)
+    -- Fare pozisyonunu kontrol et (tileset önizleme için)
+    if self.activeTileset and self.windowOpen then
+        local mouseX, mouseY = love.mouse.getPosition()
+        
+        -- ImGui pencere pozisyonunu ve içerik pozisyonunu al
+        if imgui.IsWindowFocused() then
+            local windowX, windowY = imgui.GetWindowPos()
+            local contentX, contentY = imgui.GetCursorScreenPos()
+            
+            -- Tileset görüntüsünün pozisyonunu bul
+            -- Not: Bu değerler ImGui sürümünüze bağlı olarak değişebilir
+            -- Eğer hala sorun yaşıyorsanız, bu değerleri debug ederek doğru değerleri bulabilirsiniz
+            local imageStartX = contentX
+            local imageStartY = contentY
+            
+            -- Fare pozisyonunun tileset görüntüsü üzerinde olup olmadığını kontrol et
+            local tilesetX = mouseX - imageStartX
+            local tilesetY = mouseY - imageStartY
+            
+            -- Ölçeklendirmeyi hesaba kat
+            if type(self.previewScale) == "number" then
+                tilesetX = tilesetX / self.previewScale
+                tilesetY = tilesetY / self.previewScale
+            else
+                self.previewScale = 2.0
+                tilesetX = tilesetX / 2.0
+                tilesetY = tilesetY / 2.0
+            end
+            
+            -- Debug bilgisi
+            if love.keyboard.isDown("d") then
+                Console:log(string.format("Fare: %d,%d | Tileset: %d,%d", mouseX, mouseY, tilesetX, tilesetY))
+            end
+            
+            -- Fare tileset üzerinde mi kontrol et
+            if tilesetX >= 0 and tilesetX < self.activeTileset.width and
+               tilesetY >= 0 and tilesetY < self.activeTileset.height then
+                
+                -- Üzerinde gezinilen karoyu hesapla
+                self.hoveredTile = self:getTileIdFromPosition(self.activeTileset, tilesetX, tilesetY)
+                
+                -- Fare tıklaması ile karo seç
+                if love.mouse.isDown(1) then
+                    self.selectedTile = self.hoveredTile
+                    Console:log("Karo seçildi: " .. tostring(self.selectedTile))
+                end
+            else
+                self.hoveredTile = nil
+            end
+        end
+    end
+    
+    -- Sahne üzerine karo yerleştirme
+    if self.selectedTile and self.activeTileset and self.activeMap and 
+       not imgui.GetWantCaptureMouse() and love.mouse.isDown(1) then
+        
+        local mouseX, mouseY = love.mouse.getPosition()
+        
+        -- Kendi screenToWorld fonksiyonumuzu kullan
+        local worldX, worldY = self:screenToWorld(mouseX, mouseY)
+        
+        -- Izgara pozisyonunu hesapla
+        local gridX = math.floor(worldX / self.gridSize) + 1
+        local gridY = math.floor(worldY / self.gridSize) + 1
+        
+        -- Geçerli ızgara sınırları içinde olduğundan emin ol
+        if gridX >= 1 and gridX <= self.activeMap.width and
+           gridY >= 1 and gridY <= self.activeMap.height then
+            
+            -- Karo yerleştir
+            self:setTile(
+                self.activeMap, 
+                1, -- Aktif katman (şimdilik sadece ilk katman)
+                gridX, 
+                gridY, 
+                self.activeTileset.name, 
+                self.selectedTile
+            )
+            
+            -- Debug bilgisi
+            Console:log(string.format("Karo yerleştirildi: %d, Pozisyon: %d,%d", 
+                self.selectedTile, gridX, gridY))
+        end
+    end
+end
+
+function Tilemap:drawTilemapWindow()
+    if not self.windowOpen then return end
+    
+    imgui.Begin("Tilemap Editörü", true, {"ImGuiWindowFlags_MenuBar"})
+    
+    if imgui.BeginMenuBar() then
+        if imgui.BeginMenu("Dosya") then
+            if imgui.MenuItem("Yeni Harita") then
+                -- Yeni harita oluşturma işlevi buraya gelecek
+            end
+            
+            if imgui.MenuItem("Tileset Yükle") then
+                -- Tileset yükleme işlevi buraya gelecek
+            end
+            
+            imgui.EndMenu()
+        end
+        
+        if imgui.BeginMenu("Görünüm") then
+            if imgui.MenuItem("Izgarayı Göster", nil, self.showGrid) then
+                self.showGrid = not self.showGrid
+            end
+            
+            imgui.EndMenu()
+        end
+        
+        imgui.EndMenuBar()
+    end
+    
+    -- Tileset seçimi
+    if #self.tilesets > 0 then
+        imgui.Text("Aktif Tileset:")
+        
+        local tilesetNames = {}
+        local currentTilesetIndex = 1
+        local i = 1
+        
+        for name, _ in pairs(self.tilesets) do
+            tilesetNames[i] = name
+            if self.activeTileset and self.activeTileset.name == name then
+                currentTilesetIndex = i
+            end
+            i = i + 1
+        end
+        
+        local changed, newIndex = imgui.Combo("##TilesetCombo", currentTilesetIndex - 1, tilesetNames, #tilesetNames)
+        if changed then
+            self.activeTileset = self.tilesets[tilesetNames[newIndex + 1]]
+        end
+    else
+        if imgui.Button("Tileset Yükle") then
+            -- Örnek bir tileset yükle
+            self:loadTileset("assets/tilesets/example.png", "Örnek Tileset", 32)
+        end
+    end
+    
+    -- Tileset önizleme
+    if self.activeTileset then
+        imgui.Separator()
+        imgui.Text("Tileset Önizleme:")
+        
+        -- Önizleme ölçeği ayarı - ImGui kullanımını düzeltiyoruz
+        -- Eğer previewScale bir sayı değilse, varsayılan değere ayarla
+        if type(self.previewScale) ~= "number" then
+            self.previewScale = 2.0
+        end
+        
+        -- ImGui.SliderFloat kullanımı - farklı ImGui sürümleri için uyumlu hale getiriyoruz
+        local previewScaleChanged = false
+        local newPreviewScale = self.previewScale
+        
+        -- Slider'ı çiz ve değişikliği kontrol et
+        -- NOT: ImGui sürümünüze bağlı olarak bu çağrı farklı olabilir
+        -- Birkaç farklı yöntemi deniyoruz
+        
+        -- Yöntem 1: Doğrudan değer döndüren sürüm
+        newPreviewScale = imgui.SliderFloat("Ölçek##PreviewScale", self.previewScale, 0.5, 4.0)
+        if newPreviewScale ~= self.previewScale then
+            previewScaleChanged = true
+        end
+        
+        -- Değeri güncelle
+        if previewScaleChanged and type(newPreviewScale) == "number" then
+            self.previewScale = newPreviewScale
+            Console:log("Önizleme ölçeği değiştirildi: " .. tostring(self.previewScale))
+        end
+        
+        -- Tileset bilgileri
+        imgui.Text(string.format("Boyut: %dx%d, Karo: %dx%d", 
+            self.activeTileset.width, 
+            self.activeTileset.height,
+            self.activeTileset.cols,
+            self.activeTileset.rows
+        ))
+        
+        -- Seçilen karo bilgisi
+        if self.selectedTile then
+            imgui.Text(string.format("Seçilen Karo: %d", self.selectedTile))
+        else
+            imgui.Text("Karo seçilmedi")
+        end
+        
+        -- Tileset görüntüsünü çiz
+        local availWidth = imgui.GetContentRegionAvail()
+        
+        -- previewScale'in sayı olduğundan emin ol
+        local scale = self.previewScale
+        if type(scale) ~= "number" then
+            scale = 2.0
+            self.previewScale = scale
+        end
+        
+        local imageWidth = self.activeTileset.width * scale
+        local imageHeight = self.activeTileset.height * scale
+        
+        -- Tileset görüntüsünü çizmeden önce pozisyonu kaydet
+        local cursorX, cursorY = imgui.GetCursorPos()
+        
+        imgui.Image(self.activeTileset.image, imageWidth, imageHeight)
+        
+        -- Fare tıklamasını kontrol et
+        if imgui.IsItemHovered() and love.mouse.isDown(1) then
+            local mouseX, mouseY = imgui.GetMousePos()
+            local itemX, itemY = imgui.GetItemRectMin()
+            
+            -- Tileset içindeki pozisyonu hesapla
+            local tilesetX = (mouseX - itemX) / scale
+            local tilesetY = (mouseY - itemY) / scale
+            
+            -- Karo ID'sini hesapla
+            local tileId = self:getTileIdFromPosition(self.activeTileset, tilesetX, tilesetY)
+            if tileId then
+                self.selectedTile = tileId
+                Console:log("Karo seçildi (ImGui): " .. tostring(self.selectedTile))
+            end
+        end
+        
+        -- Seçilen ve üzerinde gezinilen karoları görselleştir
+        if self.selectedTile or self.hoveredTile then
+            -- Seçilen karo
+            if self.selectedTile then
+                local tile = self:getTileFromTileset(self.activeTileset, self.selectedTile)
+                if tile then
+                    -- Seçilen karonun pozisyonunu hesapla
+                    local tileX = tile.col * self.activeTileset.tileSize * scale
+                    local tileY = tile.row * self.activeTileset.tileSize * scale
+                    local tileW = self.activeTileset.tileSize * scale
+                    local tileH = self.activeTileset.tileSize * scale
+                    
+                    -- Seçilen karoyu vurgula - basit bir metin ile
+                    imgui.Text(string.format("Seçilen Karo: %d (Sütun: %d, Satır: %d)", 
+                        self.selectedTile, tile.col + 1, tile.row + 1))
+                end
+            end
+            
+            -- Üzerinde gezinilen karo
+            if self.hoveredTile and self.hoveredTile ~= self.selectedTile then
+                local tile = self:getTileFromTileset(self.activeTileset, self.hoveredTile)
+                if tile then
+                    -- Üzerinde gezinilen karonun pozisyonunu hesapla
+                    local tileX = tile.col * self.activeTileset.tileSize * scale
+                    local tileY = tile.row * self.activeTileset.tileSize * scale
+                    local tileW = self.activeTileset.tileSize * scale
+                    local tileH = self.activeTileset.tileSize * scale
+                    
+                    -- Üzerinde gezinilen karoyu vurgula - basit bir metin ile
+                    imgui.Text(string.format("Üzerinde Gezinilen Karo: %d (Sütun: %d, Satır: %d)", 
+                        self.hoveredTile, tile.col + 1, tile.row + 1))
+                end
+            end
+        end
+    end
+    
+    -- Harita ayarları
+    imgui.Separator()
+    imgui.Text("Harita Ayarları:")
+    
+    if #self.maps > 0 then
+        local mapNames = {}
+        local currentMapIndex = 1
+        local i = 1
+        
+        for name, _ in pairs(self.maps) do
+            mapNames[i] = name
+            if self.activeMap and self.activeMap.name == name then
+                currentMapIndex = i
+            end
+            i = i + 1
+        end
+        
+        local changed, newIndex = imgui.Combo("##MapCombo", currentMapIndex - 1, mapNames, #mapNames)
+        if changed then
+            self.activeMap = self.maps[mapNames[newIndex + 1]]
+        end
+    else
+        if imgui.Button("Yeni Harita") then
+            self:createMap(20, 15, "Yeni Harita")
+        end
+    end
+    
+    if self.activeMap then
+        imgui.Text(string.format("Boyut: %dx%d", self.activeMap.width, self.activeMap.height))
+        
+        -- Izgara boyutu ayarı - ImGui kullanımını düzeltiyoruz
+        -- Eğer gridSize bir sayı değilse, varsayılan değere ayarla
+        if type(self.gridSize) ~= "number" then
+            self.gridSize = 32
+        end
+        
+        -- ImGui.SliderInt kullanımı - farklı ImGui sürümleri için uyumlu hale getiriyoruz
+        local gridSizeChanged = false
+        local newGridSize = self.gridSize
+        
+        -- Slider'ı çiz ve değişikliği kontrol et
+        -- NOT: ImGui sürümünüze bağlı olarak bu çağrı farklı olabilir
+        -- Birkaç farklı yöntemi deniyoruz
+        
+        -- Yöntem 1: Doğrudan değer döndüren sürüm
+        newGridSize = imgui.SliderInt("Izgara Boyutu##GridSize", self.gridSize, 16, 64)
+        if newGridSize ~= self.gridSize then
+            gridSizeChanged = true
+        end
+        
+        -- Değeri güncelle
+        if gridSizeChanged and type(newGridSize) == "number" then
+            self.gridSize = newGridSize
+            Console:log("Izgara boyutu değiştirildi: " .. tostring(self.gridSize))
+        end
+    end
+    
+    imgui.End()
+end
+
+function Tilemap:drawMap(map)
+    if not map then return end
+    
+    -- Her katmanı çiz
+    for layerIndex, layer in ipairs(map.layers) do
+        if layer.visible then
+            for y = 1, map.height do
+                for x = 1, map.width do
+                    local tile = layer.tiles[y][x]
+                    if tile then
+                        local tileset = self.tilesets[tile.tilesetName]
+                        if tileset then
+                            local tileData = self:getTileFromTileset(tileset, tile.tileId)
+                            if tileData then
+                                love.graphics.setColor(1, 1, 1, 1) -- Tam opaklık ile çiz
+                                love.graphics.draw(
+                                    tileset.image,
+                                    tileData.quad,
+                                    (x - 1) * self.gridSize,
+                                    (y - 1) * self.gridSize,
+                                    0,
+                                    self.gridSize / tileset.tileSize,
+                                    self.gridSize / tileset.tileSize
+                                )
+                            else
+                                Console:log(string.format("Hata: Karo verisi bulunamadı: %d", tile.tileId))
+                            end
+                        else
+                            Console:log(string.format("Hata: Tileset bulunamadı: %s", tile.tilesetName))
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Izgara çizgileri
+    if self.showGrid then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+        
+        -- Yatay çizgiler
+        for y = 0, map.height do
+            love.graphics.line(
+                0, 
+                y * self.gridSize, 
+                map.width * self.gridSize, 
+                y * self.gridSize
+            )
+        end
+        
+        -- Dikey çizgiler
+        for x = 0, map.width do
+            love.graphics.line(
+                x * self.gridSize, 
+                0, 
+                x * self.gridSize, 
+                map.height * self.gridSize
+            )
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+end
+
+function Tilemap:drawInScene()
+    -- Bu fonksiyon, main.lua'daki love.draw içinde çağrılmalıdır
+    -- Aktif haritayı çiz
+    if self.activeMap then
+        self:drawMap(self.activeMap)
+    end
+    
+    -- Fare pozisyonunda seçilen karoyu göster (yerleştirme önizlemesi)
+    if self.selectedTile and self.activeTileset and not imgui.GetWantCaptureMouse() then
+        local mouseX, mouseY = love.mouse.getPosition()
+        
+        -- Kendi screenToWorld fonksiyonumuzu kullan
+        local worldX, worldY = self:screenToWorld(mouseX, mouseY)
+        
+        -- Izgara pozisyonunu hesapla
+        local gridX = math.floor(worldX / self.gridSize)
+        local gridY = math.floor(worldY / self.gridSize)
+        
+        -- Seçilen karoyu çiz
+        local tileData = self:getTileFromTileset(self.activeTileset, self.selectedTile)
+        if tileData then
+            love.graphics.setColor(1, 1, 1, 0.7) -- Yarı saydam
+            love.graphics.draw(
+                self.activeTileset.image,
+                tileData.quad,
+                gridX * self.gridSize,
+                gridY * self.gridSize,
+                0,
+                self.gridSize / self.activeTileset.tileSize,
+                self.gridSize / self.activeTileset.tileSize
+            )
+            love.graphics.setColor(1, 1, 1, 1) -- Rengi sıfırla
+            
+            -- Izgara vurgusu
+            love.graphics.setColor(1, 1, 0, 0.5)
+            love.graphics.rectangle(
+                "line",
+                gridX * self.gridSize,
+                gridY * self.gridSize,
+                self.gridSize,
+                self.gridSize
+            )
+            love.graphics.setColor(1, 1, 1, 1) -- Rengi sıfırla
+        end
+    end
+    
+    -- Debug bilgisi - aktif harita ve seçilen karo hakkında bilgi
+    if love.keyboard.isDown("t") then
+        local info = "Tilemap Bilgisi:\n"
+        
+        if self.activeMap then
+            info = info .. string.format("Aktif Harita: %s (%dx%d)\n", 
+                self.activeMap.name, self.activeMap.width, self.activeMap.height)
+            
+            -- Katman bilgisi
+            info = info .. string.format("Katman Sayısı: %d\n", #self.activeMap.layers)
+            
+            -- Karo sayısı
+            local tileCount = 0
+            for _, layer in ipairs(self.activeMap.layers) do
+                for y = 1, self.activeMap.height do
+                    for x = 1, self.activeMap.width do
+                        if layer.tiles[y][x] then
+                            tileCount = tileCount + 1
+                        end
+                    end
+                end
+            end
+            
+            info = info .. string.format("Toplam Karo Sayısı: %d\n", tileCount)
+        else
+            info = info .. "Aktif Harita Yok\n"
+        end
+        
+        if self.selectedTile then
+            info = info .. string.format("Seçilen Karo: %d\n", self.selectedTile)
+        else
+            info = info .. "Karo Seçilmedi\n"
+        end
+        
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", 10, 10, 300, 100)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.print(info, 20, 20)
+    end
+end
+
+-- Orijinal draw fonksiyonunu güncelle
+function Tilemap:draw()
+    -- Bu fonksiyon artık drawInScene fonksiyonunu çağırır
+    self:drawInScene()
+end
+
+return Tilemap
